@@ -1,0 +1,1913 @@
+openapi: 3.0.3
+info:
+  title: Nova Trade API
+  version: "1.0.0"
+  description: |
+    HTTP+JSON API for Nova Trade.
+
+    - Base URL in dev: `http://localhost:8080`
+    - Versioned API root: `/api/v1`
+    - Auth: Bearer JWT (`Authorization: Bearer <token>`)
+    - Error shape: `{ "error": "message" }`
+    - Some endpoints return `{ "ok": true }` on success.
+servers:
+  - url: http://localhost:8080
+tags:
+  - name: Health
+  - name: Auth
+  - name: Companies
+  - name: Users
+  - name: Partners
+  - name: Orders
+  - name: Attachments
+  - name: Wallets
+  - name: Dashboard
+  - name: Notifications
+  - name: Collections
+  - name: LC Release
+security:
+  - BearerAuth: [] # default; overridden by operations that set security: []
+
+paths:
+  /health:
+    get:
+      tags: [Health]
+      summary: Liveness/health
+      security: [] # public
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, example: ok }
+
+  /api/v1/auth/login:
+    post:
+      tags: [Auth]
+      summary: Login
+      description: |
+        Returns a short-lived token if activation is required, or a normal token for regular logins.
+      security: [] # public
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: Login result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoginResult"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  /api/v1/auth/init-activation:
+    post:
+      tags: [Auth]
+      summary: Init activation (issue/return TOTP secret)
+      description: |
+        Requires a Bearer token from `login` where `need_activation=true`.
+        - In non-prod with testing enabled, returns `{ "totp_secret": "..." }`.
+        - In prod, returns `{ "ok": true }`.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              oneOf:
+                - type: object
+                  properties:
+                    totp_secret: { type: string }
+                - $ref: "#/components/schemas/OkResponse"
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /api/v1/auth/activate:
+    post:
+      tags: [Auth]
+      summary: Complete activation (set password & email, verify TOTP)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ActivateRequest"
+      responses:
+        "200":
+          description: Normal login token after activation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoginResult"
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /api/v1/auth/send-email-otp:
+    post:
+      tags: [Auth]
+      summary: Send an email OTP (mock)
+      description: |
+        Sends a 6-digit OTP for the given purpose and stores it server-side (mock email).
+        In dev/testing the response includes `"testing_code"` for convenience.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [purpose]
+              properties:
+                purpose: { type: string, example: transfer }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean, example: true }
+                  testing_code:
+                    type: string
+                    description: Present in dev/testing only.
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /api/v1/companies:
+    post:
+      tags: [Companies]
+      summary: Create company (super admin)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateCompanyInput" }
+      responses:
+        "200":
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  company: { $ref: "#/components/schemas/Company" }
+                  admin: { $ref: "#/components/schemas/User" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+    get:
+      tags: [Companies]
+      summary: Search companies (super admin)
+      parameters:
+        - in: query
+          name: q
+          schema: { type: string }
+          description: Fuzzy match on name/admin/wallet address.
+      responses:
+        "200":
+          description: Companies
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Company" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /api/v1/companies/{id}:
+    put:
+      tags: [Companies]
+      summary: Update company (super admin)
+      parameters:
+        - $ref: "#/components/parameters/PathId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateCompanyInput" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Company" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /api/v1/users:
+    post:
+      tags: [Users]
+      summary: Create user (company admin)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateUserInput" }
+      responses:
+        "200":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/User" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+    get:
+      tags: [Users]
+      summary: Search users (company admin)
+      parameters:
+        - in: query
+          name: role
+          schema: { $ref: "#/components/schemas/RoleEnum" }
+        - in: query
+          name: status
+          schema: { $ref: "#/components/schemas/UserStatusEnum" }
+        - in: query
+          name: q
+          schema: { type: string }
+          description: Fuzzy by username or email.
+      responses:
+        "200":
+          description: Users
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/User" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /api/v1/users/{id}:
+    put:
+      tags: [Users]
+      summary: Update user (company admin)
+      parameters:
+        - $ref: "#/components/parameters/PathId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateUserInput" }
+      responses:
+        "200":
+          {
+            description: Updated,
+            content:
+              {
+                application/json:
+                  { schema: { $ref: "#/components/schemas/User" } },
+              },
+          }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /api/v1/users/{id}/reset-password:
+    post:
+      tags: [Users]
+      summary: Reset user password to default (company admin)
+      parameters:
+        - $ref: "#/components/parameters/PathId"
+      responses:
+        "200":
+          {
+            description: OK,
+            content:
+              {
+                application/json:
+                  { schema: { $ref: "#/components/schemas/OkResponse" } },
+              },
+          }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /api/v1/users/{id}/disable:
+    post:
+      tags: [Users]
+      summary: Disable user (company admin)
+      parameters:
+        - $ref: "#/components/parameters/PathId"
+      responses:
+        "200":
+          {
+            description: OK,
+            content:
+              {
+                application/json:
+                  { schema: { $ref: "#/components/schemas/OkResponse" } },
+              },
+          }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /api/v1/partners:
+    post:
+      tags: [Partners]
+      summary: Create partner (company member)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreatePartnerInput" }
+      responses:
+        "200":
+          {
+            description: Created,
+            content:
+              {
+                application/json:
+                  { schema: { $ref: "#/components/schemas/Partner" } },
+              },
+          }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+    get:
+      tags: [Partners]
+      summary: Search partners (company member)
+      parameters:
+        - in: query
+          name: q
+          schema: { type: string }
+          description: Fuzzy on name/contact/wallet address.
+      responses:
+        "200":
+          description: Partners
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Partner" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /api/v1/partners/{id}:
+    put:
+      tags: [Partners]
+      summary: Update partner
+      parameters:
+        - $ref: "#/components/parameters/PathId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdatePartnerInput" }
+      responses:
+        "200":
+          {
+            description: Updated,
+            content:
+              {
+                application/json:
+                  { schema: { $ref: "#/components/schemas/Partner" } },
+              },
+          }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+    delete:
+      tags: [Partners]
+      summary: Delete partner
+      parameters:
+        - $ref: "#/components/parameters/PathId"
+      responses:
+        "200":
+          {
+            description: OK,
+            content:
+              {
+                application/json:
+                  { schema: { $ref: "#/components/schemas/OkResponse" } },
+              },
+          }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /api/v1/orders:
+    post:
+      tags: [Orders]
+      summary: Create order (sales/company_admin)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateOrderInput" }
+      responses:
+        "200":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OrderDTO" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+    get:
+      tags: [Orders]
+      summary: Search orders
+      description: |
+        Datetime filters accept RFC3339 or `YYYY-MM-DD`. If only a date is supplied, the end boundary is exclusive of the next day.
+      parameters:
+        - in: query
+          name: id
+          schema: { type: integer, format: int64 }
+        - in: query
+          name: type
+          schema: { $ref: "#/components/schemas/OrderTypeEnum" }
+        - in: query
+          name: status
+          schema: { $ref: "#/components/schemas/OrderStatusEnum" }
+        - in: query
+          name: trade_type
+          schema: { $ref: "#/components/schemas/TradeTypeEnum" }
+        - in: query
+          name: q
+          schema: { type: string }
+          description: Fuzzy match on order name.
+        - in: query
+          name: partner_q
+          schema: { type: string }
+          description: Fuzzy match on partner name.
+        - in: query
+          name: created_from
+          schema: { type: string, example: "2025-01-01" }
+        - in: query
+          name: created_to
+          schema: { type: string, example: "2025-01-31" }
+        - in: query
+          name: submitted_from
+          schema: { type: string, example: "2025-01-01T00:00:00Z" }
+        - in: query
+          name: submitted_to
+          schema: { type: string, example: "2025-01-31T23:59:59Z" }
+        - in: query
+          name: approved_from
+          schema: { type: string }
+        - in: query
+          name: approved_to
+          schema: { type: string }
+        - in: query
+          name: paid_from
+          schema: { type: string }
+        - in: query
+          name: paid_to
+          schema: { type: string }
+      responses:
+        "200":
+          description: Orders
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/OrderDTO" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /api/v1/orders/{id}:
+    get:
+      tags: [Orders]
+      summary: Order detail
+      parameters:
+        - $ref: "#/components/parameters/PathId"
+      responses:
+        "200":
+          {
+            description: OK,
+            content:
+              {
+                application/json:
+                  { schema: { $ref: "#/components/schemas/OrderDTO" } },
+              },
+          }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+    patch:
+      tags: [Orders]
+      summary: Update order (pre-submission for sales; admin broader)
+      parameters:
+        - $ref: "#/components/parameters/PathId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateOrderInput" }
+      responses:
+        "200":
+          {
+            description: Updated,
+            content:
+              {
+                application/json:
+                  { schema: { $ref: "#/components/schemas/OrderDTO" } },
+              },
+          }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+    delete:
+      tags: [Orders]
+      summary: Delete order (pre-submission only)
+      parameters:
+        - $ref: "#/components/parameters/PathId"
+      responses:
+        "200":
+          {
+            description: OK,
+            content:
+              {
+                application/json:
+                  { schema: { $ref: "#/components/schemas/OkResponse" } },
+              },
+          }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /api/v1/orders/{id}/submit:
+    post:
+      tags: [Orders]
+      summary: Submit order
+      parameters:
+        - $ref: "#/components/parameters/PathId"
+      responses:
+        "200":
+          {
+            description: OK,
+            content:
+              {
+                application/json:
+                  { schema: { $ref: "#/components/schemas/OkResponse" } },
+              },
+          }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /api/v1/orders/{id}/approve-l2:
+    post:
+      tags: [Orders]
+      summary: Approve (L2)
+      parameters:
+        - $ref: "#/components/parameters/PathId"
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ApprovalNote" }
+      responses:
+        "200":
+          {
+            description: OK,
+            content:
+              {
+                application/json:
+                  { schema: { $ref: "#/components/schemas/OkResponse" } },
+              },
+          }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /api/v1/orders/{id}/reject-l2:
+    post:
+      tags: [Orders]
+      summary: Reject (L2)
+      parameters:
+        - $ref: "#/components/parameters/PathId"
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ApprovalNote" }
+      responses:
+        "200":
+          {
+            description: OK,
+            content:
+              {
+                application/json:
+                  { schema: { $ref: "#/components/schemas/OkResponse" } },
+              },
+          }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /api/v1/orders/{id}/approve-l1:
+    post:
+      tags: [Orders]
+      summary: Approve (L1)
+      parameters:
+        - $ref: "#/components/parameters/PathId"
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ApprovalNote" }
+      responses:
+        "200":
+          {
+            description: OK,
+            content:
+              {
+                application/json:
+                  { schema: { $ref: "#/components/schemas/OkResponse" } },
+              },
+          }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /api/v1/orders/{id}/reject-l1:
+    post:
+      tags: [Orders]
+      summary: Reject (L1)
+      parameters:
+        - $ref: "#/components/parameters/PathId"
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ApprovalNote" }
+      responses:
+        "200":
+          {
+            description: OK,
+            content:
+              {
+                application/json:
+                  { schema: { $ref: "#/components/schemas/OkResponse" } },
+              },
+          }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /api/v1/orders/{id}/execute:
+    post:
+      tags: [Orders]
+      summary: Execute payment (executor; or LC funding)
+      parameters:
+        - $ref: "#/components/parameters/PathId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ExecuteInput" }
+      responses:
+        "200":
+          {
+            description: OK,
+            content:
+              {
+                application/json:
+                  { schema: { $ref: "#/components/schemas/OrderDTO" } },
+              },
+          }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /api/v1/orders/{id}/attachments:
+    get:
+      tags: [Attachments]
+      summary: List order attachments
+      parameters:
+        - $ref: "#/components/parameters/PathId"
+      responses:
+        "200":
+          description: Attachments
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/AttachmentDTO" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+    post:
+      tags: [Attachments]
+      summary: Upload attachment(s) (local backend only)
+      description: Accepts either "file" (single) or "files[]" (multiple).
+      parameters:
+        - $ref: "#/components/parameters/PathId"
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+                files[]:
+                  type: array
+                  items:
+                    type: string
+                    format: binary
+      responses:
+        "200":
+          description: Uploaded
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/AttachmentDTO" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /api/v1/orders/{id}/attachments/init:
+    post:
+      tags: [Attachments]
+      summary: Init S3 uploads for an order (S3 mode only)
+      parameters:
+        - $ref: "#/components/parameters/PathId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [files]
+              properties:
+                files:
+                  type: array
+                  items: { $ref: "#/components/schemas/InitUploadSpec" }
+      responses:
+        "200":
+          description: Presigned PUT URLs
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  uploads:
+                    type: array
+                    items: { $ref: "#/components/schemas/InitUploadResult" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /api/v1/orders/{id}/attachments/complete:
+    post:
+      tags: [Attachments]
+      summary: Complete S3 uploads for an order (S3 mode only)
+      parameters:
+        - $ref: "#/components/parameters/PathId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              items: { $ref: "#/components/schemas/CompleteUploadSpec" }
+      responses:
+        "200":
+          description: Finalized attachments
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/AttachmentDTO" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /api/v1/orders/{id}/attachments/{attid}:
+    delete:
+      tags: [Attachments]
+      summary: Delete an order attachment (pre-submission only)
+      parameters:
+        - $ref: "#/components/parameters/PathId"
+        - in: path
+          name: attid
+          required: true
+          schema: { type: integer, format: int64 }
+      responses:
+        "200":
+          {
+            description: OK,
+            content:
+              {
+                application/json:
+                  { schema: { $ref: "#/components/schemas/OkResponse" } },
+              },
+          }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /api/v1/collections/{id}/attachments:
+    get:
+      tags: [Attachments]
+      summary: List collection attachments
+      parameters:
+        - $ref: "#/components/parameters/PathId"
+      responses:
+        "200":
+          description: Attachments
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/AttachmentDTO" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+    post:
+      tags: [Attachments]
+      summary: Upload attachment(s) to collection (local backend only)
+      parameters:
+        - $ref: "#/components/parameters/PathId"
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+                files[]:
+                  type: array
+                  items:
+                    type: string
+                    format: binary
+      responses:
+        "200":
+          description: Uploaded
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/AttachmentDTO" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /api/v1/collections/{id}/attachments/init:
+    post:
+      tags: [Attachments]
+      summary: Init S3 uploads for a collection (S3 mode only)
+      parameters:
+        - $ref: "#/components/parameters/PathId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [files]
+              properties:
+                files:
+                  type: array
+                  items: { $ref: "#/components/schemas/InitUploadSpec" }
+      responses:
+        "200":
+          description: Presigned PUT URLs
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  uploads:
+                    type: array
+                    items: { $ref: "#/components/schemas/InitUploadResult" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /api/v1/collections/{id}/attachments/complete:
+    post:
+      tags: [Attachments]
+      summary: Complete S3 uploads for a collection (S3 mode only)
+      parameters:
+        - $ref: "#/components/parameters/PathId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              items: { $ref: "#/components/schemas/CompleteUploadSpec" }
+      responses:
+        "200":
+          description: Finalized attachments
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/AttachmentDTO" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /api/v1/collections/{id}/attachments/{attid}:
+    delete:
+      tags: [Attachments]
+      summary: Delete a collection attachment (pre-submission only)
+      parameters:
+        - $ref: "#/components/parameters/PathId"
+        - in: path
+          name: attid
+          required: true
+          schema: { type: integer, format: int64 }
+      responses:
+        "200":
+          {
+            description: OK,
+            content:
+              {
+                application/json:
+                  { schema: { $ref: "#/components/schemas/OkResponse" } },
+              },
+          }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /api/v1/attachments/{id}/download:
+    get:
+      tags: [Attachments]
+      summary: Download an attachment by ID
+      description: |
+        - Local mode: returns the file as an attachment (binary).
+        - S3 mode: returns `{ "download_url": "..." }` (short-lived presigned URL).
+      parameters:
+        - $ref: "#/components/parameters/PathId"
+      responses:
+        "200":
+          description: File or JSON URL
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  download_url: { type: string }
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /api/v1/wallets:
+    get:
+      tags: [Wallets]
+      summary: List company wallets (by asset and/or address substring)
+      parameters:
+        - in: query
+          name: asset
+          schema: { type: string, example: USDC }
+        - in: query
+          name: q
+          schema:
+            {
+              type: string,
+              description: "Case-insensitive contains on address.",
+            }
+      responses:
+        "200":
+          description: Wallets
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Wallet" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /api/v1/dashboard/metrics:
+    get:
+      tags: [Dashboard]
+      summary: Dashboard KPI metrics
+      description: |
+        - Use one of `?range=monthly|quarterly|yearly`, **or** provide `start` & `end`.
+        - Date/time accepts RFC3339 or `YYYY-MM-DD`.
+      parameters:
+        - in: query
+          name: range
+          schema:
+            type: string
+            enum: [monthly, quarterly, yearly]
+        - in: query
+          name: start
+          schema: { type: string }
+        - in: query
+          name: end
+          schema: { type: string }
+      responses:
+        "200":
+          description: Metrics
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Metrics" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /api/v1/dashboard/todos:
+    get:
+      tags: [Dashboard]
+      summary: Dashboard To-Do buckets
+      responses:
+        "200":
+          description: To-Do lists by bucket
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TODOs" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /api/v1/dashboard/todos/dismiss:
+    post:
+      tags: [Dashboard]
+      summary: Dismiss a single To-Do for this login session
+      description: |
+        Request **either** the generic payload `{ resource, id }` or the legacy payload `{ order_id }`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - $ref: "#/components/schemas/DismissRequestGeneric"
+                - $ref: "#/components/schemas/DismissRequestLegacy"
+      responses:
+        "200":
+          {
+            description: OK,
+            content:
+              {
+                application/json:
+                  { schema: { $ref: "#/components/schemas/OkResponse" } },
+              },
+          }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /api/v1/notifications:
+    get:
+      tags: [Notifications]
+      summary: List notifications (mocked, per user)
+      responses:
+        "200":
+          description: Notifications
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Notification" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /api/v1/collections:
+    post:
+      tags: [Collections]
+      summary: Create collection (收款)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateCollectionInput" }
+      responses:
+        "200":
+          {
+            description: Created,
+            content:
+              {
+                application/json:
+                  { schema: { $ref: "#/components/schemas/CollectionDTO" } },
+              },
+          }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+    get:
+      tags: [Collections]
+      summary: Search collections (draft/pending/submitted)
+      parameters:
+        - in: query
+          name: id
+          schema: { type: integer, format: int64 }
+        - in: query
+          name: status
+          schema: { $ref: "#/components/schemas/CollectionStatusEnum" }
+        - in: query
+          name: q
+          schema: { type: string }
+        - in: query
+          name: payer_q
+          schema: { type: string }
+        - in: query
+          name: created_from
+          schema: { type: string }
+        - in: query
+          name: created_to
+          schema: { type: string }
+      responses:
+        "200":
+          description: Collections
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/CollectionDTO" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /api/v1/collections/completed:
+    get:
+      tags: [Collections]
+      summary: Search completed collections (payment_received)
+      parameters:
+        - in: query
+          name: id
+          schema: { type: integer, format: int64 }
+        - in: query
+          name: q
+          schema: { type: string }
+        - in: query
+          name: payer_q
+          schema: { type: string }
+        - in: query
+          name: received_from
+          schema: { type: string }
+        - in: query
+          name: received_to
+          schema: { type: string }
+      responses:
+        "200":
+          description: Collections
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/CollectionDTO" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /api/v1/collections/{id}:
+    get:
+      tags: [Collections]
+      summary: Collection detail
+      parameters:
+        - $ref: "#/components/parameters/PathId"
+      responses:
+        "200":
+          {
+            description: OK,
+            content:
+              {
+                application/json:
+                  { schema: { $ref: "#/components/schemas/CollectionDTO" } },
+              },
+          }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+    patch:
+      tags: [Collections]
+      summary: Update collection (pre-submit only)
+      parameters:
+        - $ref: "#/components/parameters/PathId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateCollectionInput" }
+      responses:
+        "200":
+          {
+            description: Updated,
+            content:
+              {
+                application/json:
+                  { schema: { $ref: "#/components/schemas/CollectionDTO" } },
+              },
+          }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+    delete:
+      tags: [Collections]
+      summary: Delete collection (pre-submit only)
+      parameters:
+        - $ref: "#/components/parameters/PathId"
+      responses:
+        "200":
+          {
+            description: OK,
+            content:
+              {
+                application/json:
+                  { schema: { $ref: "#/components/schemas/OkResponse" } },
+              },
+          }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /api/v1/collections/{id}/submit:
+    post:
+      tags: [Collections]
+      summary: Submit collection (sends mock email to payer)
+      parameters:
+        - $ref: "#/components/parameters/PathId"
+      responses:
+        "200":
+          {
+            description: OK,
+            content:
+              {
+                application/json:
+                  { schema: { $ref: "#/components/schemas/OkResponse" } },
+              },
+          }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /api/v1/collections/{id}/mark-received:
+    post:
+      tags: [Collections]
+      summary: Mark payment received (executor/company_admin)
+      parameters:
+        - $ref: "#/components/parameters/PathId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/MarkReceivedInput" }
+      responses:
+        "200":
+          {
+            description: OK,
+            content:
+              {
+                application/json:
+                  { schema: { $ref: "#/components/schemas/CollectionDTO" } },
+              },
+          }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /api/v1/lc/releases:
+    get:
+      tags: ["LC Release"]
+      summary: List / search LC release queue
+      parameters:
+        - in: query
+          name: id
+          schema: { type: integer, format: int64 }
+        - in: query
+          name: partner_q
+          schema: { type: string }
+        - in: query
+          name: trade_type
+          schema: { $ref: "#/components/schemas/TradeTypeEnum" }
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [await_seller_confirm, await_buyer_confirm_and_release]
+        - in: query
+          name: q
+          schema: { type: string, description: "Fuzzy order name." }
+      responses:
+        "200":
+          description: LC release items
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ReleaseListItem" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /api/v1/lc/releases/{id}:
+    get:
+      tags: ["LC Release"]
+      summary: LC release detail
+      parameters:
+        - $ref: "#/components/parameters/PathId"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReleaseDetail" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /api/v1/lc/releases/{id}/seller-confirm:
+    post:
+      tags: ["LC Release"]
+      summary: Seller confirm shipment (seller-company Sales)
+      parameters:
+        - $ref: "#/components/parameters/PathId"
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/NoteBody" }
+      responses:
+        "200":
+          {
+            description: OK,
+            content:
+              {
+                application/json:
+                  { schema: { $ref: "#/components/schemas/OkResponse" } },
+              },
+          }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /api/v1/lc/releases/{id}/buyer-confirm:
+    post:
+      tags: ["LC Release"]
+      summary: Buyer confirm received & request release (buyer-company Sales)
+      parameters:
+        - $ref: "#/components/parameters/PathId"
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/NoteBody" }
+      responses:
+        "200":
+          {
+            description: OK,
+            content:
+              {
+                application/json:
+                  { schema: { $ref: "#/components/schemas/OkResponse" } },
+              },
+          }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /api/v1/lc/releases/{id}/platform-confirm:
+    post:
+      tags: ["LC Release"]
+      summary: Platform confirm (super admin)
+      parameters:
+        - $ref: "#/components/parameters/PathId"
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/NoteBody" }
+      responses:
+        "200":
+          {
+            description: OK,
+            content:
+              {
+                application/json:
+                  { schema: { $ref: "#/components/schemas/OkResponse" } },
+              },
+          }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    PathId:
+      in: path
+      name: id
+      required: true
+      schema: { type: integer, format: int64 }
+
+  responses:
+    BadRequest:
+      description: Invalid request
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorResponse" }
+    Unauthorized:
+      description: Missing/invalid token
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorResponse" }
+    Forbidden:
+      description: Forbidden by policy
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorResponse" }
+
+  schemas:
+    # ===== Common =====
+    OkResponse:
+      type: object
+      properties:
+        ok: { type: boolean, example: true }
+    ErrorResponse:
+      type: object
+      properties:
+        error: { type: string }
+    ApprovalNote:
+      type: object
+      properties:
+        note:
+          type: string
+          description: Optional note
+    NoteBody:
+      type: object
+      properties:
+        note: { type: string }
+    RoleEnum:
+      type: string
+      enum: [super_admin, company_admin, sales, l1_admin, l2_admin, executor]
+    UserStatusEnum:
+      type: string
+      enum: [pending_activation, normal, disabled]
+    OrderTypeEnum:
+      type: string
+      enum: [payment, onchain_lc]
+    OrderStatusEnum:
+      type: string
+      enum:
+        - draft
+        - pending_submission
+        - pending_l2_approval
+        - pending_l1_approval
+        - approved
+        - pending_payment
+        - pending_release
+        - payment_completed
+        - order_closed
+    TradeTypeEnum:
+      type: string
+      enum: [iron_ore, crude_oil]
+    CollectionStatusEnum:
+      type: string
+      enum: [draft, pending_submission, submitted, payment_received]
+
+    # ===== Auth =====
+    LoginRequest:
+      type: object
+      required: [username, password]
+      properties:
+        username: { type: string }
+        password: { type: string }
+    LoginResult:
+      type: object
+      required: [need_activation]
+      properties:
+        need_activation: { type: boolean }
+        token:
+          type: string
+          description: JWT token (present for both activation and normal logins)
+        totp_secret:
+          type: string
+          description: Present only in testing flows.
+        session:
+          type: string
+          description: Session nonce (needed during activation)
+    ActivateRequest:
+      type: object
+      required: [new_password, email, totp_code]
+      properties:
+        new_password: { type: string }
+        email: { type: string, format: email }
+        totp_code: { type: string }
+
+    # ===== Companies =====
+    Company:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+        name: { type: string }
+        admin_id: { type: integer, format: int64, nullable: true }
+        contact: { type: string }
+        wallet_id: { type: integer, format: int64, nullable: true }
+        created_by: { type: integer, format: int64 }
+    CreateCompanyInput:
+      type: object
+      required: [name, admin_user, contact_info]
+      properties:
+        name: { type: string }
+        admin_user: { type: string }
+        contact_info: { type: string }
+    UpdateCompanyInput:
+      type: object
+      properties:
+        name: { type: string, nullable: true }
+        contact: { type: string, nullable: true }
+        wallet_id: { type: integer, format: int64, nullable: true }
+        admin_id: { type: integer, format: int64, nullable: true }
+
+    # ===== Users =====
+    User:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+        username: { type: string }
+        real_name: { type: string }
+        email: { type: string }
+        phone: { type: string }
+        role: { $ref: "#/components/schemas/RoleEnum" }
+        status: { $ref: "#/components/schemas/UserStatusEnum" }
+        company_id: { type: integer, format: int64, nullable: true }
+        must_change: { type: boolean }
+    CreateUserInput:
+      type: object
+      required: [username, real_name, email, phone, role]
+      properties:
+        username: { type: string }
+        real_name: { type: string }
+        email: { type: string, format: email }
+        phone: { type: string }
+        role:
+          allOf: [{ $ref: "#/components/schemas/RoleEnum" }]
+          description: Must be a company-level role (not super_admin).
+    UpdateUserInput:
+      type: object
+      properties:
+        real_name: { type: string, nullable: true }
+        email: { type: string, format: email, nullable: true }
+        phone: { type: string, nullable: true }
+        role: { $ref: "#/components/schemas/RoleEnum" }
+        status: { $ref: "#/components/schemas/UserStatusEnum" }
+
+    # ===== Partners =====
+    Partner:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+        company_id: { type: integer, format: int64 }
+        name: { type: string }
+        contact_person: { type: string }
+        contact_info: { type: string }
+        wallet_address: { type: string }
+        linked_company_id: { type: integer, format: int64, nullable: true }
+        created_by: { type: integer, format: int64 }
+    CreatePartnerInput:
+      type: object
+      required: [name, contact_person, contact_info, wallet_address]
+      properties:
+        name: { type: string }
+        contact_person: { type: string }
+        contact_info: { type: string }
+        wallet_address: { type: string }
+        linked_company_id:
+          type: integer
+          format: int64
+          nullable: true
+          description: Optional link to seller company; set 0 or null to clear.
+    UpdatePartnerInput:
+      type: object
+      properties:
+        name: { type: string, nullable: true }
+        contact_person: { type: string, nullable: true }
+        contact_info: { type: string, nullable: true }
+        wallet_address: { type: string, nullable: true }
+        linked_company_id:
+          type: integer
+          format: int64
+          nullable: true
+          description: Set 0 to clear link.
+
+    # ===== Orders =====
+    ExecInfo:
+      type: object
+      properties:
+        company_wallet_address: { type: string }
+        company_wallet_balance:
+          {
+            type: string,
+            description: "Human readable with thousands separators.",
+          }
+        recipient_wallet_address: { type: string }
+    OrderDTO:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        company_id: { type: integer, format: int64 }
+        type: { $ref: "#/components/schemas/OrderTypeEnum" }
+        status: { $ref: "#/components/schemas/OrderStatusEnum" }
+        name: { type: string }
+        trade_type: { $ref: "#/components/schemas/TradeTypeEnum" }
+        partner_id: { type: integer, format: int64 }
+        partner_wallet: { type: string }
+        amount_minor: { type: integer, format: int64 }
+        amount:
+          {
+            type: string,
+            description: "Human readable with thousands separators.",
+          }
+        asset: { type: string }
+        description: { type: string }
+        submitter_id: { type: integer, format: int64, nullable: true }
+        submitted_at: { type: string, format: date-time, nullable: true }
+        executor_id: { type: integer, format: int64, nullable: true }
+        approved_at: { type: string, format: date-time, nullable: true }
+        payment_done_at: { type: string, format: date-time, nullable: true }
+        tx_hash: { type: string }
+        tx_url: { type: string }
+        lc_funding_tx_hash: { type: string }
+        lc_funding_tx_url: { type: string }
+        lc_release_tx_hash: { type: string }
+        lc_release_tx_url: { type: string }
+        attachments:
+          type: array
+          items: { type: string }
+        created_by: { type: integer, format: int64 }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+        execution_info:
+          $ref: "#/components/schemas/ExecInfo"
+          nullable: true
+    CreateOrderInput:
+      type: object
+      required: [type, name, trade_type, partner_id, amount]
+      properties:
+        type: { $ref: "#/components/schemas/OrderTypeEnum" }
+        name: { type: string }
+        trade_type: { $ref: "#/components/schemas/TradeTypeEnum" }
+        partner_id: { type: integer, format: int64 }
+        amount: { type: string, description: "Decimal string" }
+        asset:
+          {
+            type: string,
+            example: USDC,
+            description: "Optional; defaults to server's DEFAULT_ASSET.",
+          }
+        description: { type: string }
+        attachments:
+          type: array
+          items: { type: string }
+          deprecated: true
+          description: "Legacy metadata only; real file uploads go through /attachments endpoints."
+        save_and_submit: { type: boolean }
+        save_as_draft: { type: boolean }
+    UpdateOrderInput:
+      type: object
+      properties:
+        name: { type: string, nullable: true }
+        trade_type: { $ref: "#/components/schemas/TradeTypeEnum" }
+        partner_id: { type: integer, format: int64, nullable: true }
+        amount: { type: string, nullable: true }
+        asset: { type: string, nullable: true }
+        description: { type: string, nullable: true }
+        attachments:
+          type: array
+          items: { type: string }
+          deprecated: true
+    ExecuteInput:
+      type: object
+      required: [password, email_otp, totp]
+      properties:
+        password: { type: string }
+        email_otp: { type: string }
+        totp: { type: string }
+
+    # ===== Attachments =====
+    AttachmentDTO:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        file_name: { type: string }
+        size_bytes: { type: integer, format: int64 }
+        content_type: { type: string }
+        status: { type: string, enum: [uploading, ready, deleted] }
+    InitUploadSpec:
+      type: object
+      required: [file_name]
+      properties:
+        file_name:
+          {
+            type: string,
+            description: "Will be sanitized to basename and safe characters.",
+          }
+        content_type: { type: string, default: application/octet-stream }
+        size: { type: integer, format: int64, minimum: 0 }
+    InitUploadResult:
+      type: object
+      properties:
+        attachment_id: { type: integer, format: int64 }
+        key: { type: string, description: "S3 object key" }
+        put_url: { type: string, description: "Presigned PUT URL" }
+        headers:
+          type: object
+          additionalProperties: { type: string }
+          description: "Headers that MUST be sent along with the PUT (e.g., SSE-KMS)."
+        expires_in: { type: integer, example: 300 }
+    CompleteUploadSpec:
+      type: object
+      required: [attachment_id]
+      properties:
+        attachment_id: { type: integer, format: int64 }
+        checksum_sha256:
+          type: string
+          description: Optional client-computed checksum (hex).
+
+    # ===== Wallets =====
+    Wallet:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+        address: { type: string }
+        asset: { type: string }
+        balance_minor: { type: integer, format: int64 }
+        last_op_at: { type: string, format: date-time }
+        company_id: { type: integer, format: int64, nullable: true }
+
+    # ===== Dashboard =====
+    Metrics:
+      type: object
+      properties:
+        total_orders: { type: integer, format: int64 }
+        total_payments:
+          { type: string, description: "Sum in default asset, human readable" }
+        total_receipts:
+          { type: string, description: "Sum in default asset, human readable" }
+    TODOItem:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        name: { type: string }
+        amount: { type: string }
+        status: { type: string }
+        time: { type: string }
+    TODOs:
+      type: object
+      properties:
+        pending_submission:
+          { type: array, items: { $ref: "#/components/schemas/TODOItem" } }
+        pending_l2_approval:
+          { type: array, items: { $ref: "#/components/schemas/TODOItem" } }
+        pending_l1_approval:
+          { type: array, items: { $ref: "#/components/schemas/TODOItem" } }
+        rejected_awaiting_action:
+          { type: array, items: { $ref: "#/components/schemas/TODOItem" } }
+        pending_payment:
+          { type: array, items: { $ref: "#/components/schemas/TODOItem" } }
+        receipts_pending_payer:
+          { type: array, items: { $ref: "#/components/schemas/TODOItem" } }
+        lc_wait_seller_confirm:
+          { type: array, items: { $ref: "#/components/schemas/TODOItem" } }
+        lc_wait_buyer_confirm_and_release:
+          { type: array, items: { $ref: "#/components/schemas/TODOItem" } }
+    DismissRequestGeneric:
+      type: object
+      required: [resource, id]
+      properties:
+        resource:
+          type: string
+          enum: [order, collection, lc]
+        id: { type: integer, format: int64 }
+    DismissRequestLegacy:
+      type: object
+      required: [order_id]
+      properties:
+        order_id: { type: integer, format: int64 }
+
+    # ===== Notifications =====
+    Notification:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        user_id: { type: integer, format: int64 }
+        title: { type: string }
+        body: { type: string }
+        read: { type: boolean }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    # ===== Collections =====
+    CollectionDTO:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        company_id: { type: integer, format: int64 }
+        status: { $ref: "#/components/schemas/CollectionStatusEnum" }
+        name: { type: string }
+        payer_id: { type: integer, format: int64 }
+        payer_wallet: { type: string }
+        amount_minor: { type: integer, format: int64 }
+        amount:
+          {
+            type: string,
+            description: "Human readable with thousands separators.",
+          }
+        asset: { type: string }
+        description: { type: string }
+        attachments: { type: array, items: { type: string } }
+        created_by: { type: integer, format: int64 }
+        submitted_at: { type: string, format: date-time, nullable: true }
+        received_at: { type: string, format: date-time, nullable: true }
+        tx_hash: { type: string }
+        tx_url: { type: string }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    CreateCollectionInput:
+      type: object
+      required: [name, payer_id, amount]
+      properties:
+        name: { type: string }
+        payer_id: { type: integer, format: int64 }
+        amount: { type: string, description: "Decimal string" }
+        asset: { type: string, example: USDC }
+        description: { type: string }
+        attachments:
+          type: array
+          items: { type: string }
+          description: "Optional metadata names; real files via attachments endpoints."
+        save_as_draft: { type: boolean, default: false }
+        save_and_submit: { type: boolean, default: false }
+    UpdateCollectionInput:
+      type: object
+      properties:
+        name: { type: string, nullable: true }
+        payer_id: { type: integer, format: int64, nullable: true }
+        amount: { type: string, nullable: true }
+        asset: { type: string, nullable: true }
+        description: { type: string, nullable: true }
+        attachments: { type: array, items: { type: string }, nullable: true }
+    MarkReceivedInput:
+      type: object
+      required: [tx_hash]
+      properties:
+        tx_hash: { type: string }
+
+    # ===== LC Release =====
+    ReleaseListItem:
+      type: object
+      properties:
+        order_id: { type: integer, format: int64 }
+        name: { type: string }
+        trade_type: { $ref: "#/components/schemas/TradeTypeEnum" }
+        partner: { type: string }
+        escrow_address: { type: string }
+        escrow_address_url: { type: string }
+        amount_minor: { type: integer, format: int64 }
+        amount: { type: string }
+        asset: { type: string }
+        status:
+          type: string
+          enum: [await_seller_confirm, await_buyer_confirm_and_release]
+        status_label:
+          type: string
+          example: "待卖方确认发货"
+    # Detail returns raw Order + Escrow per backend, plus URLs
+    Order:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        company_id: { type: integer, format: int64 }
+        seller_company_id: { type: integer, format: int64, nullable: true }
+        type: { $ref: "#/components/schemas/OrderTypeEnum" }
+        status: { $ref: "#/components/schemas/OrderStatusEnum" }
+        name: { type: string }
+        trade_type: { $ref: "#/components/schemas/TradeTypeEnum" }
+        partner_id: { type: integer, format: int64 }
+        partner_wallet: { type: string }
+        amount_minor: { type: integer, format: int64 }
+        asset: { type: string }
+        description: { type: string }
+        submitter_id: { type: integer, format: int64, nullable: true }
+        submitted_at: { type: string, format: date-time, nullable: true }
+        executor_id: { type: integer, format: int64, nullable: true }
+        approved_at: { type: string, format: date-time, nullable: true }
+        payment_done_at: { type: string, format: date-time, nullable: true }
+        tx_hash: { type: string }
+        attachments:
+          description: Legacy cache (JSON)
+        created_by: { type: integer, format: int64 }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    Escrow:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        order_id: { type: integer, format: int64 }
+        address: { type: string }
+        amount_minor: { type: integer, format: int64 }
+        tx_hash: { type: string }
+        seller_confirmed_at: { type: string, format: date-time, nullable: true }
+        seller_admin_id: { type: integer, format: int64, nullable: true }
+        seller_note: { type: string }
+        buyer_confirmed_at: { type: string, format: date-time, nullable: true }
+        buyer_admin_id: { type: integer, format: int64, nullable: true }
+        buyer_note: { type: string }
+        platform_confirmed_at:
+          { type: string, format: date-time, nullable: true }
+        platform_admin_id: { type: integer, format: int64, nullable: true }
+        platform_note: { type: string }
+        release_tx_hash: { type: string }
+        release_tx_at: { type: string, format: date-time, nullable: true }
+    ReleaseDetail:
+      type: object
+      properties:
+        order: { $ref: "#/components/schemas/Order" }
+        partner: { type: string }
+        escrow: { $ref: "#/components/schemas/Escrow" }
+        funding_tx_url: { type: string }
+        release_tx_url: { type: string }
