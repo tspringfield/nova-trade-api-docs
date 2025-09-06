@@ -18,6 +18,25 @@ info:
     0x5b2e155495d2ca3fc4bb13088d77b8b15341f2d7
     0xfdc55438146f0cc7fccab36948c426f95feee4d1
     ```
+
+    ### Pagination
+    All list/search endpoints support pagination.
+
+    - Query params:
+      - `page` (integer, 1-based; default **1**)
+      - `page_size` (integer; default **20**, max **200**)
+    - Response headers:
+      - `X-Total-Count`: total items matching the filter
+      - `X-Page`: current page (1-based)
+      - `X-Page-Size`: page size used
+      - `X-Total-Pages`: total number of pages
+      - `Link`: RFC 5988 pagination links (when applicable), e.g.
+        `<.../orders?page=2&page_size=20>; rel="next", <.../orders?page=10&page_size=20>; rel="last"`
+
+    Notes:
+    - If `page` exceeds the last page, the array may be empty.
+    - If `page_size` is greater than the server maximum, it may be clamped.
+
 servers:
   - url: http://nova-api.sgusd.io
 tags:
@@ -281,9 +300,17 @@ paths:
           name: q
           schema: { type: string }
           description: Fuzzy match on company name, admin username, or **company address**.
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PageSize"
       responses:
         "200":
           description: Companies
+          headers:
+            X-Total-Count: { $ref: "#/components/headers/X-Total-Count" }
+            X-Page: { $ref: "#/components/headers/X-Page" }
+            X-Page-Size: { $ref: "#/components/headers/X-Page-Size" }
+            X-Total-Pages: { $ref: "#/components/headers/X-Total-Pages" }
+            Link: { $ref: "#/components/headers/Link" }
           content:
             application/json:
               schema:
@@ -378,9 +405,17 @@ paths:
           name: q
           schema: { type: string }
           description: Fuzzy by username or email.
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PageSize"
       responses:
         "200":
           description: Users
+          headers:
+            X-Total-Count: { $ref: "#/components/headers/X-Total-Count" }
+            X-Page: { $ref: "#/components/headers/X-Page" }
+            X-Page-Size: { $ref: "#/components/headers/X-Page-Size" }
+            X-Total-Pages: { $ref: "#/components/headers/X-Total-Pages" }
+            Link: { $ref: "#/components/headers/Link" }
           content:
             application/json:
               schema:
@@ -482,9 +517,17 @@ paths:
           name: q
           schema: { type: string }
           description: Fuzzy on name/contact/wallet address.
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PageSize"
       responses:
         "200":
           description: Partners
+          headers:
+            X-Total-Count: { $ref: "#/components/headers/X-Total-Count" }
+            X-Page: { $ref: "#/components/headers/X-Page" }
+            X-Page-Size: { $ref: "#/components/headers/X-Page-Size" }
+            X-Total-Pages: { $ref: "#/components/headers/X-Total-Pages" }
+            Link: { $ref: "#/components/headers/Link" }
           content:
             application/json:
               schema:
@@ -602,9 +645,17 @@ paths:
         - in: query
           name: paid_to
           schema: { type: string }
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PageSize"
       responses:
         "200":
           description: Orders
+          headers:
+            X-Total-Count: { $ref: "#/components/headers/X-Total-Count" }
+            X-Page: { $ref: "#/components/headers/X-Page" }
+            X-Page-Size: { $ref: "#/components/headers/X-Page-Size" }
+            X-Total-Pages: { $ref: "#/components/headers/X-Total-Pages" }
+            Link: { $ref: "#/components/headers/Link" }
           content:
             application/json:
               schema:
@@ -814,9 +865,17 @@ paths:
       summary: List order attachments
       parameters:
         - $ref: "#/components/parameters/PathId"
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PageSize"
       responses:
         "200":
           description: Attachments
+          headers:
+            X-Total-Count: { $ref: "#/components/headers/X-Total-Count" }
+            X-Page: { $ref: "#/components/headers/X-Page" }
+            X-Page-Size: { $ref: "#/components/headers/X-Page-Size" }
+            X-Total-Pages: { $ref: "#/components/headers/X-Total-Pages" }
+            Link: { $ref: "#/components/headers/Link" }
           content:
             application/json:
               schema:
@@ -943,9 +1002,17 @@ paths:
       summary: List collection attachments
       parameters:
         - $ref: "#/components/parameters/PathId"
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PageSize"
       responses:
         "200":
           description: Attachments
+          headers:
+            X-Total-Count: { $ref: "#/components/headers/X-Total-Count" }
+            X-Page: { $ref: "#/components/headers/X-Page" }
+            X-Page-Size: { $ref: "#/components/headers/X-Page-Size" }
+            X-Total-Pages: { $ref: "#/components/headers/X-Total-Pages" }
+            Link: { $ref: "#/components/headers/Link" }
           content:
             application/json:
               schema:
@@ -1103,9 +1170,17 @@ paths:
           schema:
             type: string
             description: "Case-insensitive contains on address."
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PageSize"
       responses:
         "200":
           description: Wallets
+          headers:
+            X-Total-Count: { $ref: "#/components/headers/X-Total-Count" }
+            X-Page: { $ref: "#/components/headers/X-Page" }
+            X-Page-Size: { $ref: "#/components/headers/X-Page-Size" }
+            X-Total-Pages: { $ref: "#/components/headers/X-Total-Pages" }
+            Link: { $ref: "#/components/headers/Link" }
           content:
             application/json:
               schema:
@@ -1186,9 +1261,18 @@ paths:
     get:
       tags: [Notifications]
       summary: List notifications (mocked, per user)
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PageSize"
       responses:
         "200":
           description: Notifications
+          headers:
+            X-Total-Count: { $ref: "#/components/headers/X-Total-Count" }
+            X-Page: { $ref: "#/components/headers/X-Page" }
+            X-Page-Size: { $ref: "#/components/headers/X-Page-Size" }
+            X-Total-Pages: { $ref: "#/components/headers/X-Total-Pages" }
+            Link: { $ref: "#/components/headers/Link" }
           content:
             application/json:
               schema:
@@ -1241,9 +1325,17 @@ paths:
         - in: query
           name: created_to
           schema: { type: string }
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PageSize"
       responses:
         "200":
           description: Collections
+          headers:
+            X-Total-Count: { $ref: "#/components/headers/X-Total-Count" }
+            X-Page: { $ref: "#/components/headers/X-Page" }
+            X-Page-Size: { $ref: "#/components/headers/X-Page-Size" }
+            X-Total-Pages: { $ref: "#/components/headers/X-Total-Pages" }
+            Link: { $ref: "#/components/headers/Link" }
           content:
             application/json:
               schema:
@@ -1272,9 +1364,17 @@ paths:
         - in: query
           name: received_to
           schema: { type: string }
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PageSize"
       responses:
         "200":
           description: Collections
+          headers:
+            X-Total-Count: { $ref: "#/components/headers/X-Total-Count" }
+            X-Page: { $ref: "#/components/headers/X-Page" }
+            X-Page-Size: { $ref: "#/components/headers/X-Page-Size" }
+            X-Total-Pages: { $ref: "#/components/headers/X-Total-Pages" }
+            Link: { $ref: "#/components/headers/Link" }
           content:
             application/json:
               schema:
@@ -1408,9 +1508,17 @@ paths:
         - in: query
           name: q
           schema: { type: string, description: "Fuzzy order name." }
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PageSize"
       responses:
         "200":
           description: LC release items
+          headers:
+            X-Total-Count: { $ref: "#/components/headers/X-Total-Count" }
+            X-Page: { $ref: "#/components/headers/X-Page" }
+            X-Page-Size: { $ref: "#/components/headers/X-Page-Size" }
+            X-Total-Pages: { $ref: "#/components/headers/X-Total-Pages" }
+            Link: { $ref: "#/components/headers/Link" }
           content:
             application/json:
               schema:
@@ -1516,6 +1624,43 @@ components:
       name: id
       required: true
       schema: { type: integer, format: int64 }
+    Page:
+      in: query
+      name: page
+      required: false
+      description: 1-based page index.
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+    PageSize:
+      in: query
+      name: page_size
+      required: false
+      description: Number of items per page (maximum 200).
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 200
+        default: 20
+
+  headers:
+    X-Total-Count:
+      description: Total number of items matching the filter.
+      schema: { type: integer, format: int64 }
+    X-Page:
+      description: Current page (1-based).
+      schema: { type: integer, minimum: 1 }
+    X-Page-Size:
+      description: Page size used to generate the response.
+      schema: { type: integer, minimum: 1 }
+    X-Total-Pages:
+      description: Total number of pages.
+      schema: { type: integer, minimum: 0 }
+    Link:
+      description: 'RFC 5988 "Link" header with pagination links (rel="first", "prev", "next", "last") when applicable.'
+      schema: { type: string }
+      example: '<http://nova-api.sgusd.io/api/v1/orders?page=2&page_size=20>; rel="next", <http://nova-api.sgusd.io/api/v1/orders?page=10&page_size=20>; rel="last"'
 
   responses:
     BadRequest:
