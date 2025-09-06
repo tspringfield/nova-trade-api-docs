@@ -24,7 +24,7 @@ info:
 
     - Query params:
       - `page` (integer, 1-based; default **1**)
-      - `page_size` (integer; default **20**, max **200**)
+      - `page_size` (integer; default **20**, max **100**)
     - Response headers:
       - `X-Total-Count`: total items matching the filter
       - `X-Page`: current page (1-based)
@@ -323,7 +323,9 @@ paths:
         "401": { $ref: "#/components/responses/Unauthorized" }
     get:
       tags: [Companies]
-      summary: Search companies (super admin)
+      summary: Search companies
+      description: |
+        View access requires one of the following roles: **super_admin**, **company_admin**, **sales**, **executor**.
       parameters:
         - in: query
           name: q
@@ -371,7 +373,9 @@ paths:
   /api/v1/companies/{id}:
     get:
       tags: [Companies]
-      summary: Get company detail (super admin)
+      summary: Get company detail
+      description: |
+        View access requires one of the following roles: **super_admin**, **company_admin**, **sales**, **executor**.
       parameters:
         - $ref: "#/components/parameters/PathId"
       responses:
@@ -508,11 +512,18 @@ paths:
     post:
       tags: [Partners]
       summary: Create partner (company member)
+      description: |
+        Creates a partner **relation** from the caller's company to an existing partner **company**.
+        Allowed roles: **company_admin**, **sales**, **executor**, **super_admin**.
       requestBody:
         required: true
         content:
           application/json:
             schema: { $ref: "#/components/schemas/CreatePartnerInput" }
+            examples:
+              sample:
+                value:
+                  partner_company_id: 42
       responses:
         "200":
           description: Created
@@ -525,11 +536,15 @@ paths:
     get:
       tags: [Partners]
       summary: Search partners (company member)
+      description: |
+        Returns partner **relations** for the caller's company.
+        Fuzzy search `q` matches **partner company name** or **partner company address**.
+        Allowed roles: **company_admin**, **sales**, **executor**, **super_admin**.
       parameters:
         - in: query
           name: q
           schema: { type: string }
-          description: Fuzzy on name/contact/wallet address.
+          description: Fuzzy on **partner company name** or **partner company address**.
         - $ref: "#/components/parameters/Page"
         - $ref: "#/components/parameters/PageSize"
       responses:
@@ -546,31 +561,14 @@ paths:
               schema:
                 type: array
                 items: { $ref: "#/components/schemas/Partner" }
+        "403": { $ref: "#/components/responses/Forbidden" }
         "401": { $ref: "#/components/responses/Unauthorized" }
 
   /api/v1/partners/{id}:
-    put:
-      tags: [Partners]
-      summary: Update partner
-      parameters:
-        - $ref: "#/components/parameters/PathId"
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: "#/components/schemas/UpdatePartnerInput" }
-      responses:
-        "200":
-          description: Updated
-          content:
-            application/json:
-              schema: { $ref: "#/components/schemas/Partner" }
-        "403": { $ref: "#/components/responses/Forbidden" }
-        "400": { $ref: "#/components/responses/BadRequest" }
-        "401": { $ref: "#/components/responses/Unauthorized" }
     delete:
       tags: [Partners]
-      summary: Delete partner
+      summary: Delete partner (company member)
+      description: Allowed roles: **company_admin**, **sales**, **executor**, **super_admin**.
       parameters:
         - $ref: "#/components/parameters/PathId"
       responses:
@@ -1828,42 +1826,24 @@ components:
     # ===== Partners =====
     Partner:
       type: object
+      description: Partner **relation** between the caller's company and a partner **company**.
       properties:
         id: { type: integer, format: int64 }
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
-        company_id: { type: integer, format: int64 }
-        name: { type: string }
-        contact_person: { type: string }
-        contact_info: { type: string }
-        wallet_address: { type: string }
-        linked_company_id: { type: integer, format: int64, nullable: true }
+        company_id: { type: integer, format: int64, description: "Owner company ID (the caller's company)." }
+        partner_company_id: { type: integer, format: int64, description: "The partner company ID." }
+        partner_company_name: { type: string, description: "Resolved from the partner company." }
+        partner_company_address: { type: string, description: "Resolved wallet address from the partner company." }
         created_by: { type: integer, format: int64 }
     CreatePartnerInput:
       type: object
-      required: [name, contact_person, contact_info, wallet_address]
+      required: [partner_company_id]
       properties:
-        name: { type: string }
-        contact_person: { type: string }
-        contact_info: { type: string }
-        wallet_address: { type: string }
-        linked_company_id:
+        partner_company_id:
           type: integer
           format: int64
-          nullable: true
-          description: Optional link to seller company; set 0 or null to clear.
-    UpdatePartnerInput:
-      type: object
-      properties:
-        name: { type: string, nullable: true }
-        contact_person: { type: string, nullable: true }
-        contact_info: { type: string, nullable: true }
-        wallet_address: { type: string, nullable: true }
-        linked_company_id:
-          type: integer
-          format: int64
-          nullable: true
-          description: Set 0 to clear link.
+          description: "ID of an existing company to partner with (cannot be your own company)."
 
     # ===== Orders =====
     ExecInfo:
