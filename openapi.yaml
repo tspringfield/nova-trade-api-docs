@@ -39,6 +39,7 @@ info:
 
 servers:
   - url: http://nova-api.sgusd.io
+
 tags:
   - name: Health
   - name: Auth
@@ -53,15 +54,16 @@ tags:
   - name: Collections
   - name: LC Release
   - name: Meta
+
 security:
-  - BearerAuth: [] # default; overridden by operations that set security: []
+  - BearerAuth: []
 
 paths:
   /health:
     get:
       tags: [Health]
       summary: Liveness/health
-      security: [] # public
+      security: []
       responses:
         "200":
           description: OK
@@ -79,7 +81,7 @@ paths:
       description: |
         Returns labeled candidate values (value/label/label_zh/description) for roles, user status,
         order types & statuses, trade types, collection statuses, and LC Release list statuses.
-      security: [] # public
+      security: []
       responses:
         "200":
           description: Enum candidates
@@ -132,7 +134,7 @@ paths:
         - If `need_activation=false`, the token is a normal session token.
         - Returns `role` and `company_id` in both flows for immediate personalization (`company_id` is `null` for `super_admin`).
         - Includes a `session` nonce in both flows; use it to scope session-only actions (e.g., dismissing To‑Dos).
-      security: [] # public
+      security: []
       requestBody:
         required: true
         content:
@@ -464,14 +466,10 @@ paths:
             schema: { $ref: "#/components/schemas/UpdateUserInput" }
       responses:
         "200":
-          {
-            description: Updated,
-            content:
-              {
-                application/json:
-                  { schema: { $ref: "#/components/schemas/User" } },
-              },
-          }
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/User" }
         "403": { $ref: "#/components/responses/Forbidden" }
         "400": { $ref: "#/components/responses/BadRequest" }
         "401": { $ref: "#/components/responses/Unauthorized" }
@@ -484,14 +482,10 @@ paths:
         - $ref: "#/components/parameters/PathId"
       responses:
         "200":
-          {
-            description: OK,
-            content:
-              {
-                application/json:
-                  { schema: { $ref: "#/components/schemas/OkResponse" } },
-              },
-          }
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OkResponse" }
         "403": { $ref: "#/components/responses/Forbidden" }
         "401": { $ref: "#/components/responses/Unauthorized" }
 
@@ -503,14 +497,10 @@ paths:
         - $ref: "#/components/parameters/PathId"
       responses:
         "200":
-          {
-            description: OK,
-            content:
-              {
-                application/json:
-                  { schema: { $ref: "#/components/schemas/OkResponse" } },
-              },
-          }
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OkResponse" }
         "403": { $ref: "#/components/responses/Forbidden" }
         "401": { $ref: "#/components/responses/Unauthorized" }
 
@@ -525,14 +515,10 @@ paths:
             schema: { $ref: "#/components/schemas/CreatePartnerInput" }
       responses:
         "200":
-          {
-            description: Created,
-            content:
-              {
-                application/json:
-                  { schema: { $ref: "#/components/schemas/Partner" } },
-              },
-          }
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Partner" }
         "403": { $ref: "#/components/responses/Forbidden" }
         "400": { $ref: "#/components/responses/BadRequest" }
         "401": { $ref: "#/components/responses/Unauthorized" }
@@ -575,14 +561,10 @@ paths:
             schema: { $ref: "#/components/schemas/UpdatePartnerInput" }
       responses:
         "200":
-          {
-            description: Updated,
-            content:
-              {
-                application/json:
-                  { schema: { $ref: "#/components/schemas/Partner" } },
-              },
-          }
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Partner" }
         "403": { $ref: "#/components/responses/Forbidden" }
         "400": { $ref: "#/components/responses/BadRequest" }
         "401": { $ref: "#/components/responses/Unauthorized" }
@@ -593,14 +575,10 @@ paths:
         - $ref: "#/components/parameters/PathId"
       responses:
         "200":
-          {
-            description: OK,
-            content:
-              {
-                application/json:
-                  { schema: { $ref: "#/components/schemas/OkResponse" } },
-              },
-          }
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OkResponse" }
         "403": { $ref: "#/components/responses/Forbidden" }
         "401": { $ref: "#/components/responses/Unauthorized" }
 
@@ -699,14 +677,10 @@ paths:
         - $ref: "#/components/parameters/PathId"
       responses:
         "200":
-          {
-            description: OK,
-            content:
-              {
-                application/json:
-                  { schema: { $ref: "#/components/schemas/OrderDTO" } },
-              },
-          }
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OrderDTO" }
         "403": { $ref: "#/components/responses/Forbidden" }
         "401": { $ref: "#/components/responses/Unauthorized" }
     patch:
@@ -721,14 +695,10 @@ paths:
             schema: { $ref: "#/components/schemas/UpdateOrderInput" }
       responses:
         "200":
-          {
-            description: Updated,
-            content:
-              {
-                application/json:
-                  { schema: { $ref: "#/components/schemas/OrderDTO" } },
-              },
-          }
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OrderDTO" }
         "403": { $ref: "#/components/responses/Forbidden" }
         "400": { $ref: "#/components/responses/BadRequest" }
         "401": { $ref: "#/components/responses/Unauthorized" }
@@ -739,14 +709,10 @@ paths:
         - $ref: "#/components/parameters/PathId"
       responses:
         "200":
-          {
-            description: OK,
-            content:
-              {
-                application/json:
-                  { schema: { $ref: "#/components/schemas/OkResponse" } },
-              },
-          }
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OkResponse" }
         "403": { $ref: "#/components/responses/Forbidden" }
         "401": { $ref: "#/components/responses/Unauthorized" }
 
@@ -758,14 +724,10 @@ paths:
         - $ref: "#/components/parameters/PathId"
       responses:
         "200":
-          {
-            description: OK,
-            content:
-              {
-                application/json:
-                  { schema: { $ref: "#/components/schemas/OkResponse" } },
-              },
-          }
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OkResponse" }
         "403": { $ref: "#/components/responses/Forbidden" }
         "401": { $ref: "#/components/responses/Unauthorized" }
 
@@ -781,14 +743,10 @@ paths:
             schema: { $ref: "#/components/schemas/ApprovalNote" }
       responses:
         "200":
-          {
-            description: OK,
-            content:
-              {
-                application/json:
-                  { schema: { $ref: "#/components/schemas/OkResponse" } },
-              },
-          }
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OkResponse" }
         "403": { $ref: "#/components/responses/Forbidden" }
         "401": { $ref: "#/components/responses/Unauthorized" }
 
@@ -804,14 +762,10 @@ paths:
             schema: { $ref: "#/components/schemas/ApprovalNote" }
       responses:
         "200":
-          {
-            description: OK,
-            content:
-              {
-                application/json:
-                  { schema: { $ref: "#/components/schemas/OkResponse" } },
-              },
-          }
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OkResponse" }
         "403": { $ref: "#/components/responses/Forbidden" }
         "401": { $ref: "#/components/responses/Unauthorized" }
 
@@ -827,14 +781,10 @@ paths:
             schema: { $ref: "#/components/schemas/ApprovalNote" }
       responses:
         "200":
-          {
-            description: OK,
-            content:
-              {
-                application/json:
-                  { schema: { $ref: "#/components/schemas/OkResponse" } },
-              },
-          }
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OkResponse" }
         "403": { $ref: "#/components/responses/Forbidden" }
         "401": { $ref: "#/components/responses/Unauthorized" }
 
@@ -850,14 +800,10 @@ paths:
             schema: { $ref: "#/components/schemas/ApprovalNote" }
       responses:
         "200":
-          {
-            description: OK,
-            content:
-              {
-                application/json:
-                  { schema: { $ref: "#/components/schemas/OkResponse" } },
-              },
-          }
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OkResponse" }
         "403": { $ref: "#/components/responses/Forbidden" }
         "401": { $ref: "#/components/responses/Unauthorized" }
 
@@ -874,14 +820,10 @@ paths:
             schema: { $ref: "#/components/schemas/ExecuteInput" }
       responses:
         "200":
-          {
-            description: OK,
-            content:
-              {
-                application/json:
-                  { schema: { $ref: "#/components/schemas/OrderDTO" } },
-              },
-          }
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OrderDTO" }
         "403": { $ref: "#/components/responses/Forbidden" }
         "400": { $ref: "#/components/responses/BadRequest" }
         "401": { $ref: "#/components/responses/Unauthorized" }
@@ -1012,14 +954,10 @@ paths:
           schema: { type: integer, format: int64 }
       responses:
         "200":
-          {
-            description: OK,
-            content:
-              {
-                application/json:
-                  { schema: { $ref: "#/components/schemas/OkResponse" } },
-              },
-          }
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OkResponse" }
         "403": { $ref: "#/components/responses/Forbidden" }
         "401": { $ref: "#/components/responses/Unauthorized" }
 
@@ -1148,14 +1086,10 @@ paths:
           schema: { type: integer, format: int64 }
       responses:
         "200":
-          {
-            description: OK,
-            content:
-              {
-                application/json:
-                  { schema: { $ref: "#/components/schemas/OkResponse" } },
-              },
-          }
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OkResponse" }
         "403": { $ref: "#/components/responses/Forbidden" }
         "401": { $ref: "#/components/responses/Unauthorized" }
 
@@ -1262,25 +1196,19 @@ paths:
       tags: [Dashboard]
       summary: Dismiss a single To-Do for this login session
       description: |
-        Request **either** the generic payload `{ resource, id }` or the legacy payload `{ order_id }`.
+        Request payload: `{ resource, id }`.
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              oneOf:
-                - $ref: "#/components/schemas/DismissRequestGeneric"
-                - $ref: "#/components/schemas/DismissRequestLegacy"
+              $ref: "#/components/schemas/DismissRequestGeneric"
       responses:
         "200":
-          {
-            description: OK,
-            content:
-              {
-                application/json:
-                  { schema: { $ref: "#/components/schemas/OkResponse" } },
-              },
-          }
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OkResponse" }
         "400": { $ref: "#/components/responses/BadRequest" }
         "401": { $ref: "#/components/responses/Unauthorized" }
 
@@ -1319,14 +1247,10 @@ paths:
             schema: { $ref: "#/components/schemas/CreateCollectionInput" }
       responses:
         "200":
-          {
-            description: Created,
-            content:
-              {
-                application/json:
-                  { schema: { $ref: "#/components/schemas/CollectionDTO" } },
-              },
-          }
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CollectionDTO" }
         "403": { $ref: "#/components/responses/Forbidden" }
         "400": { $ref: "#/components/responses/BadRequest" }
         "401": { $ref: "#/components/responses/Unauthorized" }
@@ -1418,14 +1342,10 @@ paths:
         - $ref: "#/components/parameters/PathId"
       responses:
         "200":
-          {
-            description: OK,
-            content:
-              {
-                application/json:
-                  { schema: { $ref: "#/components/schemas/CollectionDTO" } },
-              },
-          }
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CollectionDTO" }
         "403": { $ref: "#/components/responses/Forbidden" }
         "401": { $ref: "#/components/responses/Unauthorized" }
     patch:
@@ -1440,14 +1360,10 @@ paths:
             schema: { $ref: "#/components/schemas/UpdateCollectionInput" }
       responses:
         "200":
-          {
-            description: Updated,
-            content:
-              {
-                application/json:
-                  { schema: { $ref: "#/components/schemas/CollectionDTO" } },
-              },
-          }
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CollectionDTO" }
         "403": { $ref: "#/components/responses/Forbidden" }
         "400": { $ref: "#/components/responses/BadRequest" }
         "401": { $ref: "#/components/responses/Unauthorized" }
@@ -1458,14 +1374,10 @@ paths:
         - $ref: "#/components/parameters/PathId"
       responses:
         "200":
-          {
-            description: OK,
-            content:
-              {
-                application/json:
-                  { schema: { $ref: "#/components/schemas/OkResponse" } },
-              },
-          }
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OkResponse" }
         "403": { $ref: "#/components/responses/Forbidden" }
         "401": { $ref: "#/components/responses/Unauthorized" }
 
@@ -1477,14 +1389,10 @@ paths:
         - $ref: "#/components/parameters/PathId"
       responses:
         "200":
-          {
-            description: OK,
-            content:
-              {
-                application/json:
-                  { schema: { $ref: "#/components/schemas/OkResponse" } },
-              },
-          }
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OkResponse" }
         "403": { $ref: "#/components/responses/Forbidden" }
         "401": { $ref: "#/components/responses/Unauthorized" }
 
@@ -1501,14 +1409,10 @@ paths:
             schema: { $ref: "#/components/schemas/MarkReceivedInput" }
       responses:
         "200":
-          {
-            description: OK,
-            content:
-              {
-                application/json:
-                  { schema: { $ref: "#/components/schemas/CollectionDTO" } },
-              },
-          }
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CollectionDTO" }
         "403": { $ref: "#/components/responses/Forbidden" }
         "400": { $ref: "#/components/responses/BadRequest" }
         "401": { $ref: "#/components/responses/Unauthorized" }
@@ -1581,14 +1485,10 @@ paths:
             schema: { $ref: "#/components/schemas/NoteBody" }
       responses:
         "200":
-          {
-            description: OK,
-            content:
-              {
-                application/json:
-                  { schema: { $ref: "#/components/schemas/OkResponse" } },
-              },
-          }
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OkResponse" }
         "403": { $ref: "#/components/responses/Forbidden" }
         "401": { $ref: "#/components/responses/Unauthorized" }
 
@@ -1604,14 +1504,10 @@ paths:
             schema: { $ref: "#/components/schemas/NoteBody" }
       responses:
         "200":
-          {
-            description: OK,
-            content:
-              {
-                application/json:
-                  { schema: { $ref: "#/components/schemas/OkResponse" } },
-              },
-          }
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OkResponse" }
         "403": { $ref: "#/components/responses/Forbidden" }
         "401": { $ref: "#/components/responses/Unauthorized" }
 
@@ -1627,14 +1523,10 @@ paths:
             schema: { $ref: "#/components/schemas/NoteBody" }
       responses:
         "200":
-          {
-            description: OK,
-            content:
-              {
-                application/json:
-                  { schema: { $ref: "#/components/schemas/OkResponse" } },
-              },
-          }
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OkResponse" }
         "403": { $ref: "#/components/responses/Forbidden" }
         "401": { $ref: "#/components/responses/Unauthorized" }
 
@@ -1979,10 +1871,8 @@ components:
       properties:
         company_wallet_address: { type: string }
         company_wallet_balance:
-          {
-            type: string,
-            description: "Human readable with thousands separators.",
-          }
+          type: string
+          description: "Human readable with thousands separators."
         recipient_wallet_address: { type: string }
     OrderDTO:
       type: object
@@ -1997,10 +1887,8 @@ components:
         partner_wallet: { type: string }
         amount_minor: { type: integer, format: int64 }
         amount:
-          {
-            type: string,
-            description: "Human readable with thousands separators.",
-          }
+          type: string
+          description: "Human readable with thousands separators."
         asset: { type: string }
         description: { type: string }
         submitter_id: { type: integer, format: int64, nullable: true }
@@ -2033,17 +1921,10 @@ components:
         partner_id: { type: integer, format: int64 }
         amount: { type: string, description: "Decimal string" }
         asset:
-          {
-            type: string,
-            example: USDC,
-            description: "Optional; defaults to server's DEFAULT_ASSET.",
-          }
+          type: string
+          example: USDC
+          description: "Optional; defaults to server's DEFAULT_ASSET."
         description: { type: string }
-        attachments:
-          type: array
-          items: { type: string }
-          deprecated: true
-          description: "Legacy metadata only; real file uploads go through /attachments endpoints."
         save_and_submit: { type: boolean }
         save_as_draft: { type: boolean }
     UpdateOrderInput:
@@ -2055,10 +1936,6 @@ components:
         amount: { type: string, nullable: true }
         asset: { type: string, nullable: true }
         description: { type: string, nullable: true }
-        attachments:
-          type: array
-          items: { type: string }
-          deprecated: true
     ExecuteInput:
       type: object
       required: [password, email_otp, totp]
@@ -2081,10 +1958,8 @@ components:
       required: [file_name]
       properties:
         file_name:
-          {
-            type: string,
-            description: "Will be sanitized to basename and safe characters.",
-          }
+          type: string
+          description: "Will be sanitized to basename and safe characters."
         content_type: { type: string, default: application/octet-stream }
         size: { type: integer, format: int64, minimum: 0 }
     InitUploadResult:
@@ -2126,9 +2001,11 @@ components:
       properties:
         total_orders: { type: integer, format: int64 }
         total_payments:
-          { type: string, description: "Sum in default asset, human readable" }
+          type: string
+          description: "Sum in default asset, human readable"
         total_receipts:
-          { type: string, description: "Sum in default asset, human readable" }
+          type: string
+          description: "Sum in default asset, human readable"
     TODOItem:
       type: object
       properties:
@@ -2141,21 +2018,29 @@ components:
       type: object
       properties:
         pending_submission:
-          { type: array, items: { $ref: "#/components/schemas/TODOItem" } }
+          type: array
+          items: { $ref: "#/components/schemas/TODOItem" }
         pending_l2_approval:
-          { type: array, items: { $ref: "#/components/schemas/TODOItem" } }
+          type: array
+          items: { $ref: "#/components/schemas/TODOItem" }
         pending_l1_approval:
-          { type: array, items: { $ref: "#/components/schemas/TODOItem" } }
+          type: array
+          items: { $ref: "#/components/schemas/TODOItem" }
         rejected_awaiting_action:
-          { type: array, items: { $ref: "#/components/schemas/TODOItem" } }
+          type: array
+          items: { $ref: "#/components/schemas/TODOItem" }
         pending_payment:
-          { type: array, items: { $ref: "#/components/schemas/TODOItem" } }
+          type: array
+          items: { $ref: "#/components/schemas/TODOItem" }
         receipts_pending_payer:
-          { type: array, items: { $ref: "#/components/schemas/TODOItem" } }
+          type: array
+          items: { $ref: "#/components/schemas/TODOItem" }
         lc_wait_seller_confirm:
-          { type: array, items: { $ref: "#/components/schemas/TODOItem" } }
+          type: array
+          items: { $ref: "#/components/schemas/TODOItem" }
         lc_wait_buyer_confirm_and_release:
-          { type: array, items: { $ref: "#/components/schemas/TODOItem" } }
+          type: array
+          items: { $ref: "#/components/schemas/TODOItem" }
     DismissRequestGeneric:
       type: object
       required: [resource, id]
@@ -2164,11 +2049,6 @@ components:
           type: string
           enum: [order, collection, lc]
         id: { type: integer, format: int64 }
-    DismissRequestLegacy:
-      type: object
-      required: [order_id]
-      properties:
-        order_id: { type: integer, format: int64 }
 
     # ===== Notifications =====
     Notification:
@@ -2194,10 +2074,8 @@ components:
         payer_wallet: { type: string }
         amount_minor: { type: integer, format: int64 }
         amount:
-          {
-            type: string,
-            description: "Human readable with thousands separators.",
-          }
+          type: string
+          description: "Human readable with thousands separators."
         asset: { type: string }
         description: { type: string }
         attachments: { type: array, items: { type: string } }
@@ -2257,7 +2135,6 @@ components:
         status_label:
           type: string
           example: "待卖方确认发货"
-    # Detail returns raw Order + Escrow per backend, plus URLs
     Order:
       type: object
       properties:
@@ -2279,8 +2156,6 @@ components:
         approved_at: { type: string, format: date-time, nullable: true }
         payment_done_at: { type: string, format: date-time, nullable: true }
         tx_hash: { type: string }
-        attachments:
-          description: Legacy cache (JSON)
         created_by: { type: integer, format: int64 }
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
