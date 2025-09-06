@@ -10,6 +10,14 @@ info:
     - Auth: Bearer JWT (`Authorization: Bearer <token>`)
     - Error shape: `{ "error": "message" }`
     - Some endpoints return `{ "ok": true }` on success.
+
+    ### Company wallet addresses (temporary fixed pool)
+    Super admin must assign one of these addresses when creating a company. Each address is unique across companies.
+    ```
+    0x9018c44fdb8d7ddcef398285512586903d3acd11
+    0x5b2e155495d2ca3fc4bb13088d77b8b15341f2d7
+    0xfdc55438146f0cc7fccab36948c426f95feee4d1
+    ```
 servers:
   - url: http://nova-api.sgusd.io
 tags:
@@ -244,6 +252,14 @@ paths:
         content:
           application/json:
             schema: { $ref: "#/components/schemas/CreateCompanyInput" }
+            examples:
+              sample:
+                summary: Minimal example
+                value:
+                  name: "Acme Ltd"
+                  admin_user: "acme_admin"
+                  contact_info: "ops@acme.example"
+                  address: "0x9018c44fdb8d7ddcef398285512586903d3acd11"
       responses:
         "200":
           description: Created
@@ -264,7 +280,7 @@ paths:
         - in: query
           name: q
           schema: { type: string }
-          description: Fuzzy match on name/admin/wallet address.
+          description: Fuzzy match on company name, admin username, or **company address**.
       responses:
         "200":
           description: Companies
@@ -276,7 +292,40 @@ paths:
         "403": { $ref: "#/components/responses/Forbidden" }
         "401": { $ref: "#/components/responses/Unauthorized" }
 
+  /api/v1/companies/unused-addresses:
+    get:
+      tags: [Companies]
+      summary: List unused company addresses (super admin)
+      description: Returns the fixed pool of assignable addresses minus those already assigned to companies.
+      responses:
+        "200":
+          description: Unused addresses
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UnusedAddressList" }
+              examples:
+                sample:
+                  value:
+                    addresses:
+                      - "0x5b2e155495d2ca3fc4bb13088d77b8b15341f2d7"
+                      - "0xfdc55438146f0cc7fccab36948c426f95feee4d1"
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
   /api/v1/companies/{id}:
+    get:
+      tags: [Companies]
+      summary: Get company detail (super admin)
+      parameters:
+        - $ref: "#/components/parameters/PathId"
+      responses:
+        "200":
+          description: Company detail
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Company" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
     put:
       tags: [Companies]
       summary: Update company (super admin)
@@ -1052,10 +1101,8 @@ paths:
         - in: query
           name: q
           schema:
-            {
-              type: string,
-              description: "Case-insensitive contains on address.",
-            }
+            type: string
+            description: "Case-insensitive contains on address."
       responses:
         "200":
           description: Wallets
@@ -1639,22 +1686,38 @@ components:
         name: { type: string }
         admin_id: { type: integer, format: int64, nullable: true }
         contact: { type: string }
-        wallet_id: { type: integer, format: int64, nullable: true }
+        address:
+          type: string
+          description: "Company wallet address (unique; assigned from a fixed pool)."
         created_by: { type: integer, format: int64 }
     CreateCompanyInput:
       type: object
-      required: [name, admin_user, contact_info]
+      required: [name, admin_user, contact_info, address]
       properties:
         name: { type: string }
         admin_user: { type: string }
         contact_info: { type: string }
+        address:
+          type: string
+          description: "Must be one of the unused addresses from `/api/v1/companies/unused-addresses`."
+          enum:
+            - "0x9018c44fdb8d7ddcef398285512586903d3acd11"
+            - "0x5b2e155495d2ca3fc4bb13088d77b8b15341f2d7"
+            - "0xfdc55438146f0cc7fccab36948c426f95feee4d1"
     UpdateCompanyInput:
       type: object
+      description: Address is not editable via this endpoint.
       properties:
         name: { type: string, nullable: true }
         contact: { type: string, nullable: true }
-        wallet_id: { type: integer, format: int64, nullable: true }
         admin_id: { type: integer, format: int64, nullable: true }
+
+    UnusedAddressList:
+      type: object
+      properties:
+        addresses:
+          type: array
+          items: { type: string }
 
     # ===== Users =====
     User:
