@@ -568,7 +568,7 @@ paths:
     delete:
       tags: [Partners]
       summary: Delete partner (company member)
-      description: Allowed roles: **company_admin**, **sales**, **executor**, **super_admin**.
+      description: Allowed roles are **company_admin**, **sales**, **executor**, **super_admin**.
       parameters:
         - $ref: "#/components/parameters/PathId"
       responses:
@@ -1831,10 +1831,25 @@ components:
         id: { type: integer, format: int64 }
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
-        company_id: { type: integer, format: int64, description: "Owner company ID (the caller's company)." }
-        partner_company_id: { type: integer, format: int64, description: "The partner company ID." }
-        partner_company_name: { type: string, description: "Resolved from the partner company." }
-        partner_company_address: { type: string, description: "Resolved wallet address from the partner company." }
+        company_id:
+          {
+            type: integer,
+            format: int64,
+            description: "Owner company ID (the caller's company).",
+          }
+        partner_company_id:
+          {
+            type: integer,
+            format: int64,
+            description: "The partner company ID.",
+          }
+        partner_company_name:
+          { type: string, description: "Resolved from the partner company." }
+        partner_company_address:
+          {
+            type: string,
+            description: "Resolved wallet address from the partner company.",
+          }
         created_by: { type: integer, format: int64 }
     CreatePartnerInput:
       type: object
