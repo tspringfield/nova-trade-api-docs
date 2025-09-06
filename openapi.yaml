@@ -5,13 +5,13 @@ info:
   description: |
     HTTP+JSON API for Nova Trade.
 
-    - Base URL in dev: `http://localhost:8080`
+    - Base URL in dev: `http://nova-api.sgusd.io`
     - Versioned API root: `/api/v1`
     - Auth: Bearer JWT (`Authorization: Bearer <token>`)
     - Error shape: `{ "error": "message" }`
     - Some endpoints return `{ "ok": true }` on success.
 servers:
-  - url: http://localhost:8080
+  - url: http://nova-api.sgusd.io
 tags:
   - name: Health
   - name: Auth
@@ -25,6 +25,7 @@ tags:
   - name: Notifications
   - name: Collections
   - name: LC Release
+  - name: Meta
 security:
   - BearerAuth: [] # default; overridden by operations that set security: []
 
@@ -43,6 +44,56 @@ paths:
                 type: object
                 properties:
                   status: { type: string, example: ok }
+
+  /api/v1/enums:
+    get:
+      tags: [Meta]
+      summary: Enumerations for UI (public)
+      description: |
+        Returns labeled candidate values (value/label/label_zh/description) for roles, user status,
+        order types & statuses, trade types, collection statuses, and LC Release list statuses.
+      security: [] # public
+      responses:
+        "200":
+          description: Enum candidates
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EnumsResponse"
+              examples:
+                example:
+                  value:
+                    roles:
+                      - value: super_admin
+                        label: Super Admin
+                        label_zh: 超级管理员
+                        description: Platform-wide; creates companies/admins; performs LC platform confirmation.
+                    user_status:
+                      - value: pending_activation
+                        label: Pending Activation
+                        label_zh: 待激活
+                    order_types:
+                      - value: payment
+                        label: Payment / Remittance
+                        label_zh: 支付汇款
+                    order_status:
+                      - value: draft
+                        label: Draft
+                        label_zh: 草稿
+                    trade_types:
+                      - value: iron_ore
+                        label: Iron Ore
+                        label_zh: 铁矿石
+                    collection_status:
+                      - value: submitted
+                        label: Submitted
+                        label_zh: 已提交
+                    lc_release_status:
+                      - value: await_seller_confirm
+                        label: Await Seller Confirmation
+                        label_zh: 待卖方确认发货
+        "400":
+          $ref: "#/components/responses/BadRequest"
 
   /api/v1/auth/login:
     post:
@@ -1472,7 +1523,6 @@ components:
         - pending_submission
         - pending_l2_approval
         - pending_l1_approval
-        - approved
         - pending_payment
         - pending_release
         - payment_completed
@@ -1483,6 +1533,48 @@ components:
     CollectionStatusEnum:
       type: string
       enum: [draft, pending_submission, submitted, payment_received]
+
+    # ===== Enums =====
+    EnumItem:
+      type: object
+      properties:
+        value:
+          type: string
+          description: Stable enum value used by the API
+        label:
+          type: string
+          description: English label for UI
+        label_zh:
+          type: string
+          description: Chinese label for UI
+        description:
+          type: string
+          description: Optional description/tooltips
+
+    EnumsResponse:
+      type: object
+      properties:
+        roles:
+          type: array
+          items: { $ref: "#/components/schemas/EnumItem" }
+        user_status:
+          type: array
+          items: { $ref: "#/components/schemas/EnumItem" }
+        order_types:
+          type: array
+          items: { $ref: "#/components/schemas/EnumItem" }
+        order_status:
+          type: array
+          items: { $ref: "#/components/schemas/EnumItem" }
+        trade_types:
+          type: array
+          items: { $ref: "#/components/schemas/EnumItem" }
+        collection_status:
+          type: array
+          items: { $ref: "#/components/schemas/EnumItem" }
+        lc_release_status:
+          type: array
+          items: { $ref: "#/components/schemas/EnumItem" }
 
     # ===== Auth =====
     LoginRequest:
