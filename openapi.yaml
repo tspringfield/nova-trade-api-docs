@@ -130,6 +130,8 @@ paths:
         - On success, returns a token.
         - If `need_activation=true`, the token is short-lived and intended for activation calls.
         - If `need_activation=false`, the token is a normal session token.
+        - Returns `role` and `company_id` in both flows for immediate personalization (`company_id` is `null` for `super_admin`).
+        - Includes a `session` nonce in both flows; use it to scope session-only actions (e.g., dismissing To‑Dos).
       security: [] # public
       requestBody:
         required: true
@@ -144,6 +146,23 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/LoginResult"
+              examples:
+                normal:
+                  summary: Normal login
+                  value:
+                    need_activation: false
+                    token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                    session: "bf4e0f1b9c7a427d9f24b5b9c1a2d3e4"
+                    role: company_admin
+                    company_id: 12
+                need_activation:
+                  summary: Login requires activation
+                  value:
+                    need_activation: true
+                    token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." # short‑lived
+                    session: "1d3a7c2e8f904a7d8b3e4f1c0a9b2c3d"
+                    role: sales
+                    company_id: 12
         "401": { $ref: "#/components/responses/Unauthorized" }
         "400": { $ref: "#/components/responses/BadRequest" }
 
@@ -208,7 +227,7 @@ paths:
       summary: Complete activation (set password & email, verify TOTP)
       description: |
         Validates the provided 6-digit TOTP code against the bound secret and sets the user's password and email.
-        On success returns a normal long-lived login token.
+        On success returns a normal long-lived login token, plus the user's `role` and `company_id`.
       requestBody:
         required: true
         content:
@@ -228,6 +247,14 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/LoginResult"
+              examples:
+                example:
+                  summary: Activated
+                  value:
+                    need_activation: false
+                    token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                    role: company_admin
+                    company_id: 12
         "400": { $ref: "#/components/responses/BadRequest" }
         "401": { $ref: "#/components/responses/Unauthorized" }
 
@@ -1787,7 +1814,14 @@ components:
           description: JWT token (short-lived when `need_activation=true`, normal otherwise)
         session:
           type: string
-          description: Session nonce (present when `need_activation=true`; used internally during activation)
+          description: Session nonce (present on `/auth/login` responses for both flows; used for this login session and internally during activation)
+        role:
+          $ref: "#/components/schemas/RoleEnum"
+        company_id:
+          type: integer
+          format: int64
+          nullable: true
+          description: Company ID associated with the user; null for super_admin.
 
     InitActivationResponse:
       type: object
