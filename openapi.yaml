@@ -49,7 +49,9 @@ paths:
       tags: [Auth]
       summary: Login
       description: |
-        Returns a short-lived token if activation is required, or a normal token for regular logins.
+        - On success, returns a token.
+        - If `need_activation=true`, the token is short-lived and intended for activation calls.
+        - If `need_activation=false`, the token is a normal session token.
       security: [] # public
       requestBody:
         required: true
@@ -64,29 +66,61 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/LoginResult"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "400":
-          $ref: "#/components/responses/BadRequest"
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "400": { $ref: "#/components/responses/BadRequest" }
 
   /api/v1/auth/init-activation:
     post:
       tags: [Auth]
-      summary: Init activation (issue/return TOTP secret)
+      summary: Init activation (provision or return TOTP secret)
       description: |
-        Requires a Bearer token from `login` where `need_activation=true`.
-        - In non-prod with testing enabled, returns `{ "totp_secret": "..." }`.
-        - In prod, returns `{ "ok": true }`.
+        Idempotently provisions Google Authenticator (TOTP) for the authenticated user.
+
+        - Returns both the Base32 `totp_secret` and the `otpauth_url` used to generate a QR.
+        - If the user already has a secret, returns the existing secret and a reconstructed `otpauth_url`.
+        - Use the returned `otpauth_url` to render a QR on the frontend or call `/auth/totp-qr` for a PNG.
       responses:
         "200":
-          description: OK
+          description: Provisioning info
           content:
             application/json:
-              oneOf:
-                - type: object
-                  properties:
-                    totp_secret: { type: string }
-                - $ref: "#/components/schemas/OkResponse"
+              schema:
+                $ref: "#/components/schemas/InitActivationResponse"
+              examples:
+                example:
+                  value:
+                    totp_secret: "JBSWY3DPEHPK3PXP"
+                    otpauth_url: "otpauth://totp/NOVA%20TRADE:alice?secret=JBSWY3DPEHPK3PXP&issuer=NOVA%20TRADE&algorithm=SHA1&digits=6&period=30"
+                    issuer: "NOVA TRADE"
+                    account: "alice"
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /api/v1/auth/totp-qr:
+    get:
+      tags: [Auth]
+      summary: TOTP provisioning QR (PNG)
+      description: |
+        Convenience endpoint that returns a PNG QR for the current user's `otpauth_url`.
+        Under the hood it behaves like `/auth/init-activation` (idempotent; does not rotate the secret).
+      parameters:
+        - in: query
+          name: size
+          description: PNG width/height in pixels (min 128, max 1024). Defaults to 256.
+          required: false
+          schema:
+            type: integer
+            minimum: 128
+            maximum: 1024
+            default: 256
+      responses:
+        "200":
+          description: PNG image with the QR code
+          content:
+            image/png:
+              schema:
+                type: string
+                format: binary
         "400": { $ref: "#/components/responses/BadRequest" }
         "401": { $ref: "#/components/responses/Unauthorized" }
 
@@ -94,12 +128,21 @@ paths:
     post:
       tags: [Auth]
       summary: Complete activation (set password & email, verify TOTP)
+      description: |
+        Validates the provided 6-digit TOTP code against the bound secret and sets the user's password and email.
+        On success returns a normal long-lived login token.
       requestBody:
         required: true
         content:
           application/json:
             schema:
               $ref: "#/components/schemas/ActivateRequest"
+            examples:
+              example:
+                value:
+                  new_password: "Strong#Pass1"
+                  email: "alice@example.com"
+                  totp_code: "123456"
       responses:
         "200":
           description: Normal login token after activation
@@ -1452,23 +1495,47 @@ components:
       type: object
       required: [need_activation]
       properties:
-        need_activation: { type: boolean }
+        need_activation:
+          type: boolean
+          description: true when the user must complete activation before normal use
         token:
           type: string
-          description: JWT token (present for both activation and normal logins)
-        totp_secret:
-          type: string
-          description: Present only in testing flows.
+          description: JWT token (short-lived when `need_activation=true`, normal otherwise)
         session:
           type: string
-          description: Session nonce (needed during activation)
+          description: Session nonce (present when `need_activation=true`; used internally during activation)
+
+    InitActivationResponse:
+      type: object
+      required: [totp_secret, otpauth_url, issuer, account]
+      properties:
+        totp_secret:
+          type: string
+          description: Base32 secret to be stored in the authenticator app (show to the user once)
+        otpauth_url:
+          type: string
+          description: The `otpauth://` provisioning URL; render this as a QR or call `/auth/totp-qr`
+        issuer:
+          type: string
+          example: NOVA TRADE
+        account:
+          type: string
+          description: Usually the username; appears as the account label in the authenticator
+
     ActivateRequest:
       type: object
       required: [new_password, email, totp_code]
       properties:
-        new_password: { type: string }
-        email: { type: string, format: email }
-        totp_code: { type: string }
+        new_password:
+          type: string
+          description: New password to set during activation
+        email:
+          type: string
+          format: email
+          description: Email to bind to the account
+        totp_code:
+          type: string
+          description: 6-digit code from the authenticator app
 
     # ===== Companies =====
     Company:
