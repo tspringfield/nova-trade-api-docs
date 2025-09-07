@@ -305,8 +305,8 @@ paths:
                 summary: Minimal example
                 value:
                   name: "Acme Ltd"
-                  admin_user: "acme_admin"
-                  contact_info: "ops@acme.example"
+                  admin: "acme_admin"
+                  contact: "ops@acme.example"
                   address: "0x9018c44fdb8d7ddcef398285512586903d3acd11"
       responses:
         "200":
@@ -1753,7 +1753,7 @@ components:
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
         name: { type: string }
-        admin_id: { type: integer, format: int64, nullable: true }
+        admin: { type: integer, format: int64, nullable: true }
         contact: { type: string }
         address:
           type: string
@@ -1761,11 +1761,11 @@ components:
         created_by: { type: integer, format: int64 }
     CreateCompanyInput:
       type: object
-      required: [name, admin_user, contact_info, address]
+      required: [name, admin, contact, address]
       properties:
         name: { type: string }
-        admin_user: { type: string }
-        contact_info: { type: string }
+        admin: { type: string }
+        contact: { type: string }
         address:
           type: string
           description: "Must be one of the unused addresses from `/api/v1/companies/unused-addresses`."
@@ -1779,7 +1779,7 @@ components:
       properties:
         name: { type: string, nullable: true }
         contact: { type: string, nullable: true }
-        admin_id: { type: integer, format: int64, nullable: true }
+        admin: { type: integer, format: int64, nullable: true }
 
     UnusedAddressList:
       type: object
