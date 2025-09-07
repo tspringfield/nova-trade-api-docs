@@ -1215,6 +1215,66 @@ paths:
         "403": { $ref: "#/components/responses/Forbidden" }
         "401": { $ref: "#/components/responses/Unauthorized" }
 
+  /api/v1/wallets/address/{address}/balances:
+    get:
+      tags: [Wallets]
+      summary: Get balances for a wallet address
+      description: |
+        Returns on-ledger balances for the specified `address` via Cobo WaaS.
+
+        - **Access**: `super_admin` or members of the company that owns the address.
+        - If `tokens` is omitted, defaults to `BSC_BNB,BSC_USDC`.
+        - Requires Cobo to be configured on the server.
+      parameters:
+        - in: path
+          name: address
+          required: true
+          schema: { type: string }
+          description: Wallet address (e.g., EVM address).
+        - in: query
+          name: tokens
+          required: false
+          schema: { type: string }
+          description: Comma-separated token IDs to query (e.g., `BSC_BNB,BSC_USDC`).
+      responses:
+        "200":
+          description: Balances for requested tokens
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AddressBalancesResponse"
+              examples:
+                example:
+                  value:
+                    address: "0x9018c44fdb8d7ddcef398285512586903d3acd11"
+                    tokens: ["BSC_BNB", "BSC_USDC"]
+                    balances:
+                      BSC_BNB:
+                        token_id: "BSC_BNB"
+                        total: "1.23456789"
+                        available: "1.23456789"
+                      BSC_USDC:
+                        token_id: "BSC_USDC"
+                        total: "10000.00"
+                        available: "10000.00"
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404":
+          description: Address not assigned to any company
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "502":
+          description: Upstream wallet provider error
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "503":
+          description: Cobo not configured on server
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+
   /api/v1/dashboard/metrics:
     get:
       tags: [Dashboard]
@@ -2056,6 +2116,37 @@ components:
         balance_minor: { type: integer, format: int64 }
         last_op_at: { type: string, format: date-time }
         company_id: { type: integer, format: int64, nullable: true }
+
+    TokenBalance:
+      type: object
+      properties:
+        token_id: { type: string }
+        total:
+          type: string
+          description: Total balance as a decimal string.
+        available:
+          type: string
+          description: Spendable balance as a decimal string.
+        pending:
+          type: string
+          nullable: true
+          description: Pending balance, when provided by the provider.
+        locked:
+          type: string
+          nullable: true
+          description: Locked balance, when provided by the provider.
+
+    AddressBalancesResponse:
+      type: object
+      properties:
+        address: { type: string }
+        tokens:
+          type: array
+          items: { type: string }
+        balances:
+          type: object
+          additionalProperties:
+            $ref: "#/components/schemas/TokenBalance"
 
     # ===== Dashboard =====
     Metrics:
