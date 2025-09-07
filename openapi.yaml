@@ -133,7 +133,7 @@ paths:
         - If `need_activation=true`, the token is short-lived and intended for activation calls.
         - If `need_activation=false`, the token is a normal session token.
         - Returns `role` and `company_id` in both flows for immediate personalization (`company_id` is `null` for `super_admin`).
-        - Includes a `session` nonce in both flows; use it to scope session-only actions (e.g., dismissing To‑Dos).
+        - Includes a `session` nonce in both flows; use it to scope session-only actions (e.g., dismissing To-Dos).
       security: []
       requestBody:
         required: true
@@ -161,7 +161,7 @@ paths:
                   summary: Login requires activation
                   value:
                     need_activation: true
-                    token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." # short‑lived
+                    token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." # short-lived
                     session: "1d3a7c2e8f904a7d8b3e4f1c0a9b2c3d"
                     role: sales
                     company_id: 12
@@ -326,11 +326,21 @@ paths:
       summary: Search companies
       description: |
         View access requires one of the following roles: **super_admin**, **company_admin**, **sales**, **executor**.
+
+        Text filters are case-insensitive and fuzzy (`ILIKE`). All non-empty filters are combined with **AND**.
       parameters:
         - in: query
-          name: q
+          name: name
           schema: { type: string }
-          description: Fuzzy match on company name, admin username, or **company address**.
+          description: Fuzzy match on company name.
+        - in: query
+          name: admin
+          schema: { type: string }
+          description: Fuzzy match on **admin username**.
+        - in: query
+          name: address
+          schema: { type: string }
+          description: Fuzzy match on **company wallet address**.
         - $ref: "#/components/parameters/Page"
         - $ref: "#/components/parameters/PageSize"
       responses:
@@ -406,6 +416,44 @@ paths:
         "400": { $ref: "#/components/responses/BadRequest" }
         "401": { $ref: "#/components/responses/Unauthorized" }
 
+  /api/v1/companies/{id}/partners:
+    get:
+      tags: [Companies, Partners]
+      summary: List partners for a specific company
+      description: |
+        Returns the partner **relations** for the specified company (each row contains the partner company info).
+
+        - **Access**: super_admin can view any; company users can view only their own company.
+        - Filters are case-insensitive fuzzy (`ILIKE`) and combined with **AND**.
+      parameters:
+        - $ref: "#/components/parameters/PathId"
+        - in: query
+          name: name
+          schema: { type: string }
+          description: Fuzzy match on **partner company name**.
+        - in: query
+          name: address
+          schema: { type: string }
+          description: Fuzzy match on **partner company address**.
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PageSize"
+      responses:
+        "200":
+          description: Partners
+          headers:
+            X-Total-Count: { $ref: "#/components/headers/X-Total-Count" }
+            X-Page: { $ref: "#/components/headers/X-Page" }
+            X-Page-Size: { $ref: "#/components/headers/X-Page-Size" }
+            X-Total-Pages: { $ref: "#/components/headers/X-Total-Pages" }
+            Link: { $ref: "#/components/headers/Link" }
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Partner" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
   /api/v1/users:
     post:
       tags: [Users]
@@ -427,6 +475,8 @@ paths:
     get:
       tags: [Users]
       summary: Search users (company admin)
+      description: |
+        All text filters are case-insensitive fuzzy (`ILIKE`). Non-empty filters are combined with **AND**.
       parameters:
         - in: query
           name: role
@@ -435,9 +485,21 @@ paths:
           name: status
           schema: { $ref: "#/components/schemas/UserStatusEnum" }
         - in: query
-          name: q
+          name: username
           schema: { type: string }
-          description: Fuzzy by username or email.
+          description: Fuzzy match on username.
+        - in: query
+          name: email
+          schema: { type: string }
+          description: Fuzzy match on email.
+        - in: query
+          name: real_name
+          schema: { type: string }
+          description: Fuzzy match on real name.
+        - in: query
+          name: phone
+          schema: { type: string }
+          description: Fuzzy match on phone.
         - $ref: "#/components/parameters/Page"
         - $ref: "#/components/parameters/PageSize"
       responses:
@@ -537,14 +599,19 @@ paths:
       tags: [Partners]
       summary: Search partners (company member)
       description: |
-        Returns partner **relations** for the caller's company.
-        Fuzzy search `q` matches **partner company name** or **partner company address**.
+        Returns partner **relations** for the caller's company (each row contains the partner company info).
         Allowed roles: **company_admin**, **sales**, **executor**, **super_admin**.
+
+        Filters are case-insensitive fuzzy (`ILIKE`). All non-empty filters are combined with **AND**.
       parameters:
         - in: query
-          name: q
+          name: name
           schema: { type: string }
-          description: Fuzzy on **partner company name** or **partner company address**.
+          description: Fuzzy match on **partner company name**.
+        - in: query
+          name: address
+          schema: { type: string }
+          description: Fuzzy match on **partner company address**.
         - $ref: "#/components/parameters/Page"
         - $ref: "#/components/parameters/PageSize"
       responses:
@@ -1125,10 +1192,10 @@ paths:
           name: asset
           schema: { type: string, example: USDC }
         - in: query
-          name: q
+          name: address
           schema:
             type: string
-            description: "Case-insensitive contains on address."
+          description: Case-insensitive contains on address (substring match).
         - $ref: "#/components/parameters/Page"
         - $ref: "#/components/parameters/PageSize"
       responses:
@@ -1554,11 +1621,11 @@ components:
       in: query
       name: page_size
       required: false
-      description: Number of items per page (maximum 200).
+      description: Number of items per page (maximum 100).
       schema:
         type: integer
         minimum: 1
-        maximum: 200
+        maximum: 100
         default: 20
 
   headers:
