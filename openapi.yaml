@@ -124,6 +124,22 @@ paths:
         "400":
           $ref: "#/components/responses/BadRequest"
 
+  /api/v1/auth/me:
+    get:
+      tags: [Auth]
+      summary: Get current user ("me")
+      description: |
+        Returns the currently authenticated user's basic profile for session bootstrap.
+      responses:
+        "200":
+          description: Current user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+
   /api/v1/auth/login:
     post:
       tags: [Auth]
@@ -549,6 +565,22 @@ paths:
         "401": { $ref: "#/components/responses/Unauthorized" }
 
   /api/v1/users/{id}:
+    get:
+      tags: [Users]
+      summary: Get user detail (self or company admin)
+      description: |
+        - A user can fetch **their own** user record.
+        - Company admins can fetch users **within their company**.
+      parameters:
+        - $ref: "#/components/parameters/PathId"
+      responses:
+        "200":
+          description: User
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/User" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
     put:
       tags: [Users]
       summary: Update user (company admin)
