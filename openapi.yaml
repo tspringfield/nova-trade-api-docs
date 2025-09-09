@@ -51,7 +51,6 @@ tags:
   - name: Wallets
   - name: Dashboard
   - name: Notifications
-  - name: Collections
   - name: LC Release
   - name: Meta
 
@@ -80,7 +79,7 @@ paths:
       summary: Enumerations for UI (public)
       description: |
         Returns labeled candidate values (value/label/label_zh/description) for roles, user status,
-        order types & statuses, trade types, collection statuses, and LC Release list statuses.
+        order types & statuses, trade types, and LC Release list statuses.
       security: []
       responses:
         "200":
@@ -105,18 +104,47 @@ paths:
                       - value: payment
                         label: Payment / Remittance
                         label_zh: 支付汇款
+                      - value: onchain_lc
+                        label: On-chain LC
+                        label_zh: 链上信用证
+                      - value: collection
+                        label: Collection (Receipt)
+                        label_zh: 收款
                     order_status:
                       - value: draft
                         label: Draft
                         label_zh: 草稿
+                      - value: pending_submission
+                        label: Pending Submission
+                        label_zh: 待提交
+                      - value: pending_l2_approval
+                        label: Pending L2 Approval
+                        label_zh: 待二级审批
+                      - value: pending_l1_approval
+                        label: Pending L1 Approval
+                        label_zh: 待一级审批
+                      - value: pending_payment
+                        label: Pending Payment
+                        label_zh: 待付款
+                      - value: pending_release
+                        label: Pending Release (LC)
+                        label_zh: 待放款流程
+                      - value: submitted
+                        label: Submitted (Collection)
+                        label_zh: 已提交收款
+                      - value: payment_received
+                        label: Payment Received (Collection)
+                        label_zh: 付款完成
+                      - value: payment_completed
+                        label: Payment Completed
+                        label_zh: 付款完成
+                      - value: order_closed
+                        label: Order Closed
+                        label_zh: 提单关闭
                     trade_types:
                       - value: iron_ore
                         label: Iron Ore
                         label_zh: 铁矿石
-                    collection_status:
-                      - value: submitted
-                        label: Submitted
-                        label_zh: 已提交
                     lc_release_status:
                       - value: await_seller_confirm
                         label: Await Seller Confirmation
@@ -954,6 +982,27 @@ paths:
         "400": { $ref: "#/components/responses/BadRequest" }
         "401": { $ref: "#/components/responses/Unauthorized" }
 
+  /api/v1/orders/{id}/mark-received:
+    post:
+      tags: [Orders]
+      summary: Mark collection payment received (executor/company_admin)
+      parameters:
+        - $ref: "#/components/parameters/PathId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/MarkReceivedInput" }
+      responses:
+        "200":
+          description: Updated order (status -> payment_received)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OrderDTO" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
   /api/v1/orders/{id}/attachments:
     get:
       tags: [Attachments]
@@ -1036,6 +1085,41 @@ paths:
         "403": { $ref: "#/components/responses/Forbidden" }
         "401": { $ref: "#/components/responses/Unauthorized" }
 
+  /api/v1/orders/{id}/attachments/adopt:
+    post:
+      tags: [Attachments]
+      summary: Adopt staged files into this order
+      description: |
+        Moves **ready** files from a staging group into the given order.
+        Use the Group Staging endpoints to prepare files under a `group_key`, then call this to adopt them.
+      parameters:
+        - $ref: "#/components/parameters/PathId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [group_key]
+              properties:
+                group_key:
+                  type: string
+                  description: Staging group key to adopt from.
+      responses:
+        "200":
+          description: Adopted attachments
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  adopted:
+                    type: array
+                    items: { $ref: "#/components/schemas/AttachmentDTO" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
   /api/v1/orders/{id}/attachments/{attid}:
     delete:
       tags: [Attachments]
@@ -1055,17 +1139,21 @@ paths:
         "403": { $ref: "#/components/responses/Forbidden" }
         "401": { $ref: "#/components/responses/Unauthorized" }
 
-  /api/v1/collections/{id}/attachments:
+  /api/v1/attachments/groups/{key}:
     get:
       tags: [Attachments]
-      summary: List collection attachments
+      summary: List staged attachments in a group (S3 mode only)
       parameters:
-        - $ref: "#/components/parameters/PathId"
+        - in: path
+          name: key
+          required: true
+          schema: { type: string }
+          description: Staging group key.
         - $ref: "#/components/parameters/Page"
         - $ref: "#/components/parameters/PageSize"
       responses:
         "200":
-          description: Attachments
+          description: Staged attachments
           headers:
             X-Total-Count: { $ref: "#/components/headers/X-Total-Count" }
             X-Page: { $ref: "#/components/headers/X-Page" }
@@ -1080,12 +1168,16 @@ paths:
         "403": { $ref: "#/components/responses/Forbidden" }
         "401": { $ref: "#/components/responses/Unauthorized" }
 
-  /api/v1/collections/{id}/attachments/init:
+  /api/v1/attachments/groups/{key}/init:
     post:
       tags: [Attachments]
-      summary: Init S3 uploads for a collection (S3 mode only)
+      summary: Init staged uploads for a group (S3 mode only)
       parameters:
-        - $ref: "#/components/parameters/PathId"
+        - in: path
+          name: key
+          required: true
+          schema: { type: string }
+          description: Staging group key.
       requestBody:
         required: true
         content:
@@ -1112,12 +1204,16 @@ paths:
         "403": { $ref: "#/components/responses/Forbidden" }
         "401": { $ref: "#/components/responses/Unauthorized" }
 
-  /api/v1/collections/{id}/attachments/complete:
+  /api/v1/attachments/groups/{key}/complete:
     post:
       tags: [Attachments]
-      summary: Complete S3 uploads for a collection (S3 mode only)
+      summary: Complete staged uploads for a group (S3 mode only)
       parameters:
-        - $ref: "#/components/parameters/PathId"
+        - in: path
+          name: key
+          required: true
+          schema: { type: string }
+          description: Staging group key.
       requestBody:
         required: true
         content:
@@ -1127,7 +1223,7 @@ paths:
               items: { $ref: "#/components/schemas/CompleteUploadSpec" }
       responses:
         "200":
-          description: Finalized attachments
+          description: Finalized staged attachments
           content:
             application/json:
               schema:
@@ -1137,12 +1233,15 @@ paths:
         "403": { $ref: "#/components/responses/Forbidden" }
         "401": { $ref: "#/components/responses/Unauthorized" }
 
-  /api/v1/collections/{id}/attachments/{attid}:
+  /api/v1/attachments/groups/{key}/{attid}:
     delete:
       tags: [Attachments]
-      summary: Delete a collection attachment (pre-submission only)
+      summary: Delete a staged attachment
       parameters:
-        - $ref: "#/components/parameters/PathId"
+        - in: path
+          name: key
+          required: true
+          schema: { type: string }
         - in: path
           name: attid
           required: true
@@ -1351,187 +1450,6 @@ paths:
               schema:
                 type: array
                 items: { $ref: "#/components/schemas/Notification" }
-        "400": { $ref: "#/components/responses/BadRequest" }
-        "401": { $ref: "#/components/responses/Unauthorized" }
-
-  /api/v1/collections:
-    post:
-      tags: [Collections]
-      summary: Create collection (收款)
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: "#/components/schemas/CreateCollectionInput" }
-      responses:
-        "200":
-          description: Created
-          content:
-            application/json:
-              schema: { $ref: "#/components/schemas/CollectionDTO" }
-        "403": { $ref: "#/components/responses/Forbidden" }
-        "400": { $ref: "#/components/responses/BadRequest" }
-        "401": { $ref: "#/components/responses/Unauthorized" }
-    get:
-      tags: [Collections]
-      summary: Search collections (draft/pending/submitted)
-      parameters:
-        - in: query
-          name: id
-          schema: { type: integer, format: int64 }
-        - in: query
-          name: status
-          schema: { $ref: "#/components/schemas/CollectionStatusEnum" }
-        - in: query
-          name: q
-          schema: { type: string }
-        - in: query
-          name: payer_q
-          schema: { type: string }
-        - in: query
-          name: created_from
-          schema: { type: string }
-        - in: query
-          name: created_to
-          schema: { type: string }
-        - $ref: "#/components/parameters/Page"
-        - $ref: "#/components/parameters/PageSize"
-      responses:
-        "200":
-          description: Collections
-          headers:
-            X-Total-Count: { $ref: "#/components/headers/X-Total-Count" }
-            X-Page: { $ref: "#/components/headers/X-Page" }
-            X-Page-Size: { $ref: "#/components/headers/X-Page-Size" }
-            X-Total-Pages: { $ref: "#/components/headers/X-Total-Pages" }
-            Link: { $ref: "#/components/headers/Link" }
-          content:
-            application/json:
-              schema:
-                type: array
-                items: { $ref: "#/components/schemas/CollectionDTO" }
-        "400": { $ref: "#/components/responses/BadRequest" }
-        "401": { $ref: "#/components/responses/Unauthorized" }
-
-  /api/v1/collections/completed:
-    get:
-      tags: [Collections]
-      summary: Search completed collections (payment_received)
-      parameters:
-        - in: query
-          name: id
-          schema: { type: integer, format: int64 }
-        - in: query
-          name: q
-          schema: { type: string }
-        - in: query
-          name: payer_q
-          schema: { type: string }
-        - in: query
-          name: received_from
-          schema: { type: string }
-        - in: query
-          name: received_to
-          schema: { type: string }
-        - $ref: "#/components/parameters/Page"
-        - $ref: "#/components/parameters/PageSize"
-      responses:
-        "200":
-          description: Collections
-          headers:
-            X-Total-Count: { $ref: "#/components/headers/X-Total-Count" }
-            X-Page: { $ref: "#/components/headers/X-Page" }
-            X-Page-Size: { $ref: "#/components/headers/X-Page-Size" }
-            X-Total-Pages: { $ref: "#/components/headers/X-Total-Pages" }
-            Link: { $ref: "#/components/headers/Link" }
-          content:
-            application/json:
-              schema:
-                type: array
-                items: { $ref: "#/components/schemas/CollectionDTO" }
-        "400": { $ref: "#/components/responses/BadRequest" }
-        "401": { $ref: "#/components/responses/Unauthorized" }
-
-  /api/v1/collections/{id}:
-    get:
-      tags: [Collections]
-      summary: Collection detail
-      parameters:
-        - $ref: "#/components/parameters/PathId"
-      responses:
-        "200":
-          description: OK
-          content:
-            application/json:
-              schema: { $ref: "#/components/schemas/CollectionDTO" }
-        "403": { $ref: "#/components/responses/Forbidden" }
-        "401": { $ref: "#/components/responses/Unauthorized" }
-    patch:
-      tags: [Collections]
-      summary: Update collection (pre-submit only)
-      parameters:
-        - $ref: "#/components/parameters/PathId"
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: "#/components/schemas/UpdateCollectionInput" }
-      responses:
-        "200":
-          description: Updated
-          content:
-            application/json:
-              schema: { $ref: "#/components/schemas/CollectionDTO" }
-        "403": { $ref: "#/components/responses/Forbidden" }
-        "400": { $ref: "#/components/responses/BadRequest" }
-        "401": { $ref: "#/components/responses/Unauthorized" }
-    delete:
-      tags: [Collections]
-      summary: Delete collection (pre-submit only)
-      parameters:
-        - $ref: "#/components/parameters/PathId"
-      responses:
-        "200":
-          description: OK
-          content:
-            application/json:
-              schema: { $ref: "#/components/schemas/OkResponse" }
-        "403": { $ref: "#/components/responses/Forbidden" }
-        "401": { $ref: "#/components/responses/Unauthorized" }
-
-  /api/v1/collections/{id}/submit:
-    post:
-      tags: [Collections]
-      summary: Submit collection (sends mock email to payer)
-      parameters:
-        - $ref: "#/components/parameters/PathId"
-      responses:
-        "200":
-          description: OK
-          content:
-            application/json:
-              schema: { $ref: "#/components/schemas/OkResponse" }
-        "403": { $ref: "#/components/responses/Forbidden" }
-        "401": { $ref: "#/components/responses/Unauthorized" }
-
-  /api/v1/collections/{id}/mark-received:
-    post:
-      tags: [Collections]
-      summary: Mark payment received (executor/company_admin)
-      parameters:
-        - $ref: "#/components/parameters/PathId"
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: "#/components/schemas/MarkReceivedInput" }
-      responses:
-        "200":
-          description: OK
-          content:
-            application/json:
-              schema: { $ref: "#/components/schemas/CollectionDTO" }
-        "403": { $ref: "#/components/responses/Forbidden" }
         "400": { $ref: "#/components/responses/BadRequest" }
         "401": { $ref: "#/components/responses/Unauthorized" }
 
@@ -1744,7 +1662,7 @@ components:
       enum: [pending_activation, normal, disabled]
     OrderTypeEnum:
       type: string
-      enum: [payment, onchain_lc]
+      enum: [payment, onchain_lc, collection]
     OrderStatusEnum:
       type: string
       enum:
@@ -1754,14 +1672,13 @@ components:
         - pending_l1_approval
         - pending_payment
         - pending_release
+        - submitted
+        - payment_received
         - payment_completed
         - order_closed
     TradeTypeEnum:
       type: string
       enum: [iron_ore, crude_oil]
-    CollectionStatusEnum:
-      type: string
-      enum: [draft, pending_submission, submitted, payment_received]
 
     # ===== Enums =====
     EnumItem:
@@ -1796,9 +1713,6 @@ components:
           type: array
           items: { $ref: "#/components/schemas/EnumItem" }
         trade_types:
-          type: array
-          items: { $ref: "#/components/schemas/EnumItem" }
-        collection_status:
           type: array
           items: { $ref: "#/components/schemas/EnumItem" }
         lc_release_status:
@@ -2059,7 +1973,8 @@ components:
       properties:
         type: { $ref: "#/components/schemas/OrderTypeEnum" }
         name: { type: string }
-        trade_type: { $ref: "#/components/schemas/TradeTypeEnum" }
+        trade_type:
+          $ref: "#/components/schemas/TradeTypeEnum"
         partner_id: { type: integer, format: int64 }
         amount: { type: string, description: "Decimal string" }
         asset:
@@ -2069,6 +1984,11 @@ components:
         description: { type: string }
         save_and_submit: { type: boolean }
         save_as_draft: { type: boolean }
+        attachment_group_key:
+          type: string
+          description: |
+            Optional staging group key. If provided, ready files from `/api/v1/attachments/groups/{key}`
+            will be adopted into this order after creation.
     UpdateOrderInput:
       type: object
       properties:
@@ -2085,6 +2005,11 @@ components:
         password: { type: string }
         email_otp: { type: string }
         totp: { type: string }
+    MarkReceivedInput:
+      type: object
+      required: [tx_hash]
+      properties:
+        tx_hash: { type: string }
 
     # ===== Attachments =====
     AttachmentDTO:
@@ -2234,60 +2159,6 @@ components:
         read: { type: boolean }
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
-
-    # ===== Collections =====
-    CollectionDTO:
-      type: object
-      properties:
-        id: { type: integer, format: int64 }
-        company_id: { type: integer, format: int64 }
-        status: { $ref: "#/components/schemas/CollectionStatusEnum" }
-        name: { type: string }
-        payer_id: { type: integer, format: int64 }
-        payer_wallet: { type: string }
-        amount_minor: { type: integer, format: int64 }
-        amount:
-          type: string
-          description: "Human readable with thousands separators."
-        asset: { type: string }
-        description: { type: string }
-        attachments: { type: array, items: { type: string } }
-        created_by: { type: integer, format: int64 }
-        submitted_at: { type: string, format: date-time, nullable: true }
-        received_at: { type: string, format: date-time, nullable: true }
-        tx_hash: { type: string }
-        tx_url: { type: string }
-        created_at: { type: string, format: date-time }
-        updated_at: { type: string, format: date-time }
-    CreateCollectionInput:
-      type: object
-      required: [name, payer_id, amount]
-      properties:
-        name: { type: string }
-        payer_id: { type: integer, format: int64 }
-        amount: { type: string, description: "Decimal string" }
-        asset: { type: string, example: USDC }
-        description: { type: string }
-        attachments:
-          type: array
-          items: { type: string }
-          description: "Optional metadata names; real files via attachments endpoints."
-        save_as_draft: { type: boolean, default: false }
-        save_and_submit: { type: boolean, default: false }
-    UpdateCollectionInput:
-      type: object
-      properties:
-        name: { type: string, nullable: true }
-        payer_id: { type: integer, format: int64, nullable: true }
-        amount: { type: string, nullable: true }
-        asset: { type: string, nullable: true }
-        description: { type: string, nullable: true }
-        attachments: { type: array, items: { type: string }, nullable: true }
-    MarkReceivedInput:
-      type: object
-      required: [tx_hash]
-      properties:
-        tx_hash: { type: string }
 
     # ===== LC Release =====
     ReleaseListItem:
