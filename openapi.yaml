@@ -53,6 +53,7 @@ tags:
   - name: Notifications
   - name: LC Release
   - name: Meta
+  - name: Transactions
 
 security:
   - BearerAuth: []
@@ -1569,6 +1570,54 @@ paths:
         "403": { $ref: "#/components/responses/Forbidden" }
         "401": { $ref: "#/components/responses/Unauthorized" }
 
+  /api/v1/transactions/{id}:
+    get:
+      tags: [Transactions]
+      summary: Get transaction status (Cobo) & sync linked order
+      description: |
+        Polls a **Cobo** transaction by `id`, updates the linked order in the database, and returns a compact status payload for the frontend to display.
+
+        - Authorization equals **order:view** on the linked order.
+        - Intended for polling after initiating a payment transfer (when `OrderDTO.cobo_tx_id` is present).
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+          description: Cobo `transaction_id`.
+      responses:
+        "200":
+          description: Transaction status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TransactionStatus"
+              examples:
+                example:
+                  value:
+                    order_id: 123
+                    transaction_id: "tx_26d7c2..."
+                    status: "Completed"
+                    transaction_hash: "0xabc123...def"
+                    order_status: "payment_completed"
+                    completed: true
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404":
+          description: Transaction ID not linked to any order
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "502":
+          description: Upstream/unknown error when querying Cobo
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "503":
+          description: Cobo not configured on server
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+
 components:
   securitySchemes:
     BearerAuth:
@@ -1956,6 +2005,14 @@ components:
         payment_done_at: { type: string, format: date-time, nullable: true }
         tx_hash: { type: string }
         tx_url: { type: string }
+        # live Cobo tracking for payment orders
+        cobo_tx_id:
+          type: string
+          description: Present when a real Cobo transfer was initiated; poll `/api/v1/transactions/{id}`.
+        cobo_tx_status:
+          type: string
+          description: 'Last known Cobo status for `cobo_tx_id` (e.g., "Pending", "Completed").'
+        # LC extras
         lc_funding_tx_hash: { type: string }
         lc_funding_tx_url: { type: string }
         lc_release_tx_hash: { type: string }
@@ -2233,3 +2290,25 @@ components:
         escrow: { $ref: "#/components/schemas/Escrow" }
         funding_tx_url: { type: string }
         release_tx_url: { type: string }
+
+    # ===== Transactions =====
+    TransactionStatus:
+      type: object
+      properties:
+        order_id:
+          type: integer
+          format: int64
+        transaction_id:
+          type: string
+          description: Cobo transaction ID.
+        status:
+          type: string
+          description: 'Cobo status (e.g., "Pending", "Completed", "Failed").'
+        transaction_hash:
+          type: string
+          description: On-chain transaction hash when available.
+        order_status:
+          $ref: "#/components/schemas/OrderStatusEnum"
+        completed:
+          type: boolean
+          description: true when the transaction is completed and the order has been auto-advanced (if applicable).
