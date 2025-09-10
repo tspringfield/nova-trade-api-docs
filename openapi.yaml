@@ -111,9 +111,6 @@ paths:
                         label: Collection (Receipt)
                         label_zh: 收款
                     order_status:
-                      - value: draft
-                        label: Draft
-                        label_zh: 草稿
                       - value: pending_submission
                         label: Pending Submission
                         label_zh: 待提交
@@ -149,8 +146,6 @@ paths:
                       - value: await_seller_confirm
                         label: Await Seller Confirmation
                         label_zh: 待卖方确认发货
-        "400":
-          $ref: "#/components/responses/BadRequest"
 
   /api/v1/auth/me:
     get:
@@ -759,6 +754,8 @@ paths:
       summary: Search orders
       description: |
         Datetime filters accept RFC3339 or `YYYY-MM-DD`. If only a date is supplied, the end boundary is exclusive of the next day.
+        **Notes:**
+        - `status` accepts **one or more** statuses as a comma-separated list (CSV).
       parameters:
         - in: query
           name: id
@@ -768,7 +765,13 @@ paths:
           schema: { $ref: "#/components/schemas/OrderTypeEnum" }
         - in: query
           name: status
-          schema: { $ref: "#/components/schemas/OrderStatusEnum" }
+          description: Filter by **one or more** statuses (CSV), e.g. `pending_l2_approval,pending_l1_approval`.
+          required: false
+          style: form
+          explode: false
+          schema:
+            type: array
+            items: { $ref: "#/components/schemas/OrderStatusEnum" }
         - in: query
           name: trade_type
           schema: { $ref: "#/components/schemas/TradeTypeEnum" }
@@ -1666,7 +1669,6 @@ components:
     OrderStatusEnum:
       type: string
       enum:
-        - draft
         - pending_submission
         - pending_l2_approval
         - pending_l1_approval
