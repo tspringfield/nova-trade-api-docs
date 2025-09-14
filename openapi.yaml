@@ -11,14 +11,6 @@ info:
     - Error shape: `{ "error": "message" }`
     - Some endpoints return `{ "ok": true }` on success.
 
-    ### Company wallet addresses (temporary fixed pool)
-    Super admin must assign one of these addresses when creating a company. Each address is unique across companies.
-    ```
-    0x9018c44fdb8d7ddcef398285512586903d3acd11
-    0x5b2e155495d2ca3fc4bb13088d77b8b15341f2d7
-    0xfdc55438146f0cc7fccab36948c426f95feee4d1
-    ```
-
     ### Pagination
     All list/search endpoints support pagination.
 
