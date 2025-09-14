@@ -50,7 +50,6 @@ tags:
   - name: Attachments
   - name: Wallets
   - name: Dashboard
-  - name: Notifications
   - name: LC Release
   - name: Meta
   - name: Transactions
@@ -2186,18 +2185,6 @@ components:
           type: string
           enum: [order, collection, lc]
         id: { type: integer, format: int64 }
-
-    # ===== Notifications =====
-    Notification:
-      type: object
-      properties:
-        id: { type: integer, format: int64 }
-        user_id: { type: integer, format: int64 }
-        title: { type: string }
-        body: { type: string }
-        read: { type: boolean }
-        created_at: { type: string, format: date-time }
-        updated_at: { type: string, format: date-time }
 
     # ===== LC Release =====
     ReleaseListItem:
