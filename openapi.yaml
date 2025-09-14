@@ -629,23 +629,39 @@ paths:
       tags: [Partners]
       summary: Create partner (company member)
       description: |
-        Creates a partner **relation** from the caller's company to an existing partner **company**.
-        Allowed roles: **company_admin**, **operator**, **finance**, **super_admin**.
+        Creates a partner **relation** for the caller's company.
+
+        Two modes are supported:
+        - **Internal partner** (on‑platform): provide `partner_company_id` to link to an existing **company**.
+        - **External partner** (off‑platform): provide `name` **and** `wallet_address` (plus optional contact fields).
+
+        Notes:
+        - External partner `wallet_address` is normalized to lowercase and must be unique per company.
+        - You cannot add your own company as a partner.
+        - Allowed roles: **company_admin**, **operator**, **finance**, **super_admin**.
       requestBody:
         required: true
         content:
           application/json:
             schema: { $ref: "#/components/schemas/CreatePartnerInput" }
             examples:
-              sample:
+              internal:
+                summary: Link to an existing company
                 value:
                   partner_company_id: 42
+              external:
+                summary: Create an external partner
+                value:
+                  name: "Shenzhen Metals Ltd"
+                  contact: "Ms. Wang"
+                  contact_info: "wang@example.com / +86 131 0000 0000"
+                  wallet_address: "0x5b2e155495d2ca3fc4bb13088d77b8b15341f2d7"
       responses:
         "200":
           description: Created
           content:
             application/json:
-              schema: { $ref: "#/components/schemas/Partner" }
+              schema: { $ref: "#/components/schemas/PartnerDTO" }
         "403": { $ref: "#/components/responses/Forbidden" }
         "400": { $ref: "#/components/responses/BadRequest" }
         "401": { $ref: "#/components/responses/Unauthorized" }
@@ -1873,14 +1889,68 @@ components:
             description: "Resolved wallet address from the partner company.",
           }
         created_by: { type: integer, format: int64 }
+    # Create partner now supports two modes: internal (link to company) OR external (freeform).
     CreatePartnerInput:
+      oneOf:
+        - $ref: "#/components/schemas/CreatePartnerInternal"
+        - $ref: "#/components/schemas/CreatePartnerExternal"
+      description: |
+        One of:
+        - **Internal**: link to an existing company using `partner_company_id`.
+        - **External**: provide `name` and `wallet_address` (plus optional contact fields).
+
+    CreatePartnerInternal:
       type: object
       required: [partner_company_id]
       properties:
         partner_company_id:
           type: integer
           format: int64
-          description: "ID of an existing company to partner with (cannot be your own company)."
+          minimum: 1
+          description: "Existing company ID to link as partner (cannot be your own company)."
+
+    CreatePartnerExternal:
+      type: object
+      required: [name, wallet_address]
+      properties:
+        name:
+          type: string
+          description: "Partner name."
+        contact:
+          type: string
+          description: "Contact person (optional)."
+        contact_info:
+          type: string
+          description: "Contact info (optional)."
+        wallet_address:
+          type: string
+          description: "Partner wallet address (normalized to lowercase; unique per company)."
+
+    PartnerDTO:
+      type: object
+      description: Partner view returned when creating a partner. Supports internal and external partners.
+      properties:
+        id: { type: integer, format: int64 }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+        company_id: { type: integer, format: int64 }
+        # Internal partner linkage (nullable for external partners)
+        partner_company_id:
+          type: integer
+          format: int64
+          nullable: true
+        partner_company_name:
+          type: string
+          nullable: true
+        partner_company_address:
+          type: string
+          nullable: true
+        # External partner fields (also populated for internal for convenience)
+        name: { type: string }
+        contact: { type: string }
+        contact_info: { type: string }
+        wallet_address: { type: string }
+        created_by: { type: integer, format: int64 }
 
     # ===== Orders =====
     ExecInfo:
