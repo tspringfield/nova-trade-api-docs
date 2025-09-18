@@ -71,7 +71,7 @@ paths:
       tags: [Meta]
       summary: Enumerations for UI (public)
       description: |
-        Returns labeled candidate values (value/label/label_zh/description) for roles, user status,
+        Returns labeled candidate values (value/label/label_zh/description/tag_color) for roles, user status,
         order types & statuses, trade types, and LC Release list statuses.
       security: []
       responses:
@@ -88,57 +88,136 @@ paths:
                       - value: super_admin
                         label: Super Admin
                         label_zh: 超级管理员
-                        description: Platform-wide; creates companies/admins; performs LC platform confirmation.
+                        description: "Platform-wide; creates companies/admins; performs LC platform confirmation."
+                        tag_color: "#ff4d4f"
+                      - value: company_admin
+                        label: Company Admin
+                        label_zh: 公司管理员
+                        description: "Company-scoped management of users/records; approvals done by L1/L2 roles."
+                        tag_color: "#fa8c16"
+                      - value: operator
+                        label: Operator
+                        label_zh: 业务员
+                        description: "Creates & submits Payment/LC orders and Collection orders; LC release confirmations are Operator-driven."
+                        tag_color: "#1890ff"
+                      - value: l2_admin
+                        label: Level-2 Admin
+                        label_zh: 二级管理员
+                        description: "Approves or rejects orders in 'pending L2 approval'."
+                        tag_color: "#13c2c2"
+                      - value: l1_admin
+                        label: Level-1 Admin
+                        label_zh: 一级管理员
+                        description: "Approves or rejects orders in 'pending L1 approval'."
+                        tag_color: "#52c41a"
+                      - value: finance
+                        label: Finance
+                        label_zh: 财务
+                        description: "Executes outgoing transfers after approval; monitors wallets and Collections."
+                        tag_color: "#722ed1"
+                      - value: observer
+                        label: Observer
+                        label_zh: 观察员
+                        description: "Read-only visibility within your company; no write actions or To-Dos."
+                        tag_color: "#bfbfbf"
                     user_status:
                       - value: pending_activation
                         label: Pending Activation
                         label_zh: 待激活
+                        description: "First login must change password and bind email + Google Authenticator (TOTP)."
+                        tag_color: "#faad14"
+                      - value: normal
+                        label: Normal
+                        label_zh: 正常
+                        description: "Active user."
+                        tag_color: "#52c41a"
+                      - value: disabled
+                        label: Disabled
+                        label_zh: 禁用
+                        description: "Login is blocked until re-enabled."
+                        tag_color: "#bfbfbf"
                     order_types:
                       - value: payment
                         label: Payment / Remittance
                         label_zh: 支付汇款
+                        description: "Direct transfer to partner wallet after approvals."
+                        tag_color: "#1890ff"
                       - value: onchain_lc
                         label: On-chain LC
                         label_zh: 链上信用证
+                        description: "Funding to tri-party escrow; later released to seller wallet after tri-party confirmations."
+                        tag_color: "#722ed1"
                       - value: collection
                         label: Collection (Receipt)
                         label_zh: 收款
+                        description: "Request payment from counterparty; finance/company admin marks received with a TX hash."
+                        tag_color: "#389e0d"
                     order_status:
                       - value: pending_submission
                         label: Pending Submission
                         label_zh: 待提交
+                        description: "Saved; requires explicit 'submit' to enter approval / collection flow."
+                        tag_color: "#faad14"
                       - value: pending_l2_approval
                         label: Pending L2 Approval
                         label_zh: 待二级审批
+                        description: "Awaiting Level-2 Admin review (Payment/LC)."
+                        tag_color: "#13c2c2"
                       - value: pending_l1_approval
                         label: Pending L1 Approval
                         label_zh: 待一级审批
+                        description: "Awaiting Level-1 Admin review (Payment/LC)."
+                        tag_color: "#1890ff"
                       - value: pending_payment
                         label: Pending Payment
                         label_zh: 待付款
+                        description: "Finance can transfer funds. LC: fund escrow. Payment: pay seller wallet."
+                        tag_color: "#fa8c16"
                       - value: pending_release
-                        label: Pending Release (LC)
+                        label: LC Awaiting Release
                         label_zh: 待放款流程
+                        description: "LC only: escrow funded, waiting for seller & buyer Operator confirmations and platform confirmation."
+                        tag_color: "#722ed1"
                       - value: submitted
                         label: Submitted (Collection)
-                        label_zh: 已提交收款
+                        label_zh: 已提交
+                        description: "Collection only: 已提交收款给对方，待对方付款。"
+                        tag_color: "#1890ff"
                       - value: payment_received
                         label: Payment Received (Collection)
                         label_zh: 付款完成
+                        description: "Collection only: Counterparty payment received; TX recorded for auditability."
+                        tag_color: "#52c41a"
                       - value: payment_completed
                         label: Payment Completed
                         label_zh: 付款完成
+                        description: "Final success state for Payment and LC (after release)."
+                        tag_color: "#52c41a"
                       - value: order_closed
                         label: Order Closed
                         label_zh: 提单关闭
+                        description: "Rejected at L2 or L1; shown in Completed for auditability."
+                        tag_color: "#ff4d4f"
                     trade_types:
                       - value: iron_ore
                         label: Iron Ore
                         label_zh: 铁矿石
+                        tag_color: "#8c8c8c"
+                      - value: crude_oil
+                        label: Crude Oil
+                        label_zh: 原油
+                        tag_color: "#262626"
                     lc_release_status:
                       - value: await_seller_confirm
                         label: Await Seller Confirmation
                         label_zh: 待卖方确认发货
+                        description: "Seller company Operator confirms shipment."
+                        tag_color: "#fa8c16"
+                      - value: await_buyer_confirm_and_release
+                        label: Await Buyer Confirmation & Release
+                        label_zh: 待买方确认收货并放款
+                        description: "Buyer company Operator confirms receipt and requests release; then platform confirms on-chain."
+                        tag_color: "#52c41a"
 
   /api/v1/auth/me:
     get:
@@ -146,13 +225,14 @@ paths:
       summary: Get current user ("me")
       description: |
         Returns the currently authenticated user's basic profile for session bootstrap.
+        Does not include the `must_change` flag; use user management endpoints for the full user record.
       responses:
         "200":
           description: Current user
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/User"
+                $ref: "#/components/schemas/CurrentUser"
         "401": { $ref: "#/components/responses/Unauthorized" }
         "400": { $ref: "#/components/responses/BadRequest" }
 
@@ -1346,16 +1426,19 @@ paths:
         "403": { $ref: "#/components/responses/Forbidden" }
         "401": { $ref: "#/components/responses/Unauthorized" }
 
-  /api/v1/trades/{id}/consensus/{cid}/approve:
+  /api/v1/trades/{id}/consensus/{round}/approve:
     post:
       tags: [Trades]
       summary: Approve a consensus proposal
       parameters:
         - $ref: "#/components/parameters/PathId"
         - in: path
-          name: cid
+          name: round
+          description: Consensus round to approve.
           required: true
-          schema: { type: integer, format: int64 }
+          schema:
+            type: integer
+            enum: [2, 3]
       responses:
         "200":
           description: Updated consensus
@@ -1384,18 +1467,31 @@ paths:
               schema: { $ref: "#/components/schemas/OrderDTO" }
         "400": { $ref: "#/components/responses/BadRequest" }
         "403": { $ref: "#/components/responses/Forbidden" }
+        "404":
+          description: Trade or approved consensus round not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "409":
+          description: Multiple approved consensus entries detected for the round
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
         "401": { $ref: "#/components/responses/Unauthorized" }
 
-  /api/v1/trades/{id}/consensus/{cid}/record-receipt:
+  /api/v1/trades/{id}/consensus/{round}/record-receipt:
     post:
       tags: [Trades]
       summary: Record on-chain receipt for external seller consensus (buyer company)
       parameters:
         - $ref: "#/components/parameters/PathId"
         - in: path
-          name: cid
+          name: round
+          description: Consensus round to attach the receipt to.
           required: true
-          schema: { type: integer, format: int64 }
+          schema:
+            type: integer
+            enum: [2, 3]
       requestBody:
         required: true
         content:
@@ -1411,16 +1507,19 @@ paths:
         "403": { $ref: "#/components/responses/Forbidden" }
         "401": { $ref: "#/components/responses/Unauthorized" }
 
-  /api/v1/trades/{id}/consensus/{cid}/reject:
+  /api/v1/trades/{id}/consensus/{round}/reject:
     post:
       tags: [Trades]
       summary: Reject a consensus proposal (counterparty)
       parameters:
         - $ref: "#/components/parameters/PathId"
         - in: path
-          name: cid
+          name: round
+          description: Consensus round to reject.
           required: true
-          schema: { type: integer, format: int64 }
+          schema:
+            type: integer
+            enum: [2, 3]
       requestBody:
         required: false
         content:
@@ -1435,16 +1534,19 @@ paths:
         "403": { $ref: "#/components/responses/Forbidden" }
         "401": { $ref: "#/components/responses/Unauthorized" }
 
-  /api/v1/trades/{id}/consensus/{cid}:
+  /api/v1/trades/{id}/consensus/{round}:
     patch:
       tags: [Trades]
       summary: Update and resubmit a rejected consensus (initiator)
       parameters:
         - $ref: "#/components/parameters/PathId"
         - in: path
-          name: cid
+          name: round
+          description: Consensus round to update.
           required: true
-          schema: { type: integer, format: int64 }
+          schema:
+            type: integer
+            enum: [2, 3]
       requestBody:
         required: true
         content:
@@ -1735,34 +1837,44 @@ paths:
   /api/v1/wallets:
     get:
       tags: [Wallets]
-      summary: List company wallets (by asset and/or address substring)
+      summary: Company primary wallet balances
+      description: |
+        Returns live balances for the caller's company **primary address** via Cobo WaaS.
+
+        - Only company-scoped users can call this endpoint (`super_admin` receives HTTP 400).
+        - If `tokens` is omitted, the server defaults to `BSC_BNB,BSC_USDC`.
+        - Response shape matches `/api/v1/wallets/address/{address}/balances`.
       parameters:
         - in: query
-          name: asset
-          schema: { type: string, example: USDC }
-        - in: query
-          name: address
-          schema:
-            type: string
-          description: Case-insensitive contains on address (substring match).
-        - $ref: "#/components/parameters/Page"
-        - $ref: "#/components/parameters/PageSize"
+          name: tokens
+          required: false
+          schema: { type: string }
+          description: Comma-separated token IDs to query (e.g., `BSC_BNB,BSC_USDC`).
       responses:
         "200":
-          description: Wallets
-          headers:
-            X-Total-Count: { $ref: "#/components/headers/X-Total-Count" }
-            X-Page: { $ref: "#/components/headers/X-Page" }
-            X-Page-Size: { $ref: "#/components/headers/X-Page-Size" }
-            X-Total-Pages: { $ref: "#/components/headers/X-Total-Pages" }
-            Link: { $ref: "#/components/headers/Link" }
+          description: Balances for the caller's company primary address
           content:
             application/json:
               schema:
-                type: array
-                items: { $ref: "#/components/schemas/Wallet" }
-        "403": { $ref: "#/components/responses/Forbidden" }
+                $ref: "#/components/schemas/AddressBalancesResponse"
+        "400": { $ref: "#/components/responses/BadRequest" }
         "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404":
+          description: Company address not assigned to any wallet record
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "502":
+          description: Upstream wallet provider error
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "503":
+          description: Cobo not configured on server
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
 
   /api/v1/wallets/address/{address}/balances:
     get:
@@ -1829,6 +1941,7 @@ paths:
       tags: [Dashboard]
       summary: Dashboard KPI metrics
       description: |
+        - Requires a company-scoped user; `super_admin` sessions receive HTTP 400 (`no company`).
         - Use one of `?range=monthly|quarterly|yearly`, **or** provide `start` & `end`.
         - Date/time accepts RFC3339 or `YYYY-MM-DD`.
       parameters:
@@ -1856,6 +1969,9 @@ paths:
     get:
       tags: [Dashboard]
       summary: Dashboard To-Do buckets
+      description: |
+        Returns pending workflow items grouped by bucket for the caller's company.
+        - Observer users receive an empty object because they have read-only access.
       responses:
         "200":
           description: To-Do lists by bucket
@@ -1871,6 +1987,7 @@ paths:
       summary: Dismiss a single To-Do for this login session
       description: |
         Request payload: `{ resource, id }`.
+        Requires a company-scoped user; `super_admin` sessions return HTTP 400 (`no company`).
       requestBody:
         required: true
         content:
@@ -2118,7 +2235,7 @@ components:
         note: { type: string }
     RoleEnum:
       type: string
-      enum: [super_admin, company_admin, operator, l1_admin, l2_admin, finance]
+      enum: [super_admin, company_admin, operator, l1_admin, l2_admin, finance, observer]
     UserStatusEnum:
       type: string
       enum: [pending_activation, normal, disabled]
@@ -2170,6 +2287,9 @@ components:
         description:
           type: string
           description: Optional description/tooltips
+        tag_color:
+          type: string
+          description: Optional hex color (e.g., "#1890ff") for UI badges.
 
     EnumsResponse:
       type: object
@@ -2337,7 +2457,26 @@ components:
         role: { $ref: "#/components/schemas/RoleEnum" }
         status: { $ref: "#/components/schemas/UserStatusEnum" }
         company_id: { type: integer, format: int64, nullable: true }
-        must_change: { type: boolean }
+        must_change:
+          type: boolean
+          description: true when the user must change password on next login (not included in `/auth/me`)
+    CurrentUser:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        username: { type: string }
+        real_name: { type: string }
+        email: { type: string }
+        phone: { type: string }
+        role: { $ref: "#/components/schemas/RoleEnum" }
+        status: { $ref: "#/components/schemas/UserStatusEnum" }
+        company_id:
+          type: integer
+          format: int64
+          nullable: true
+          description: Null for `super_admin` sessions.
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
     CreateUserInput:
       type: object
       required: [username, real_name, email, phone, role]
@@ -2348,7 +2487,7 @@ components:
         phone: { type: string }
         role:
           allOf: [{ $ref: "#/components/schemas/RoleEnum" }]
-          description: Must be a company-level role (not super_admin).
+          description: Must be a company-level role (one of company_admin, operator, l1_admin, l2_admin, finance, observer).
     UpdateUserInput:
       type: object
       properties:
