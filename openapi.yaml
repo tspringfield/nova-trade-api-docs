@@ -39,6 +39,7 @@ tags:
   - name: Users
   - name: Partners
   - name: Orders
+  - name: Trades
   - name: Attachments
   - name: Wallets
   - name: Dashboard
@@ -657,6 +658,41 @@ paths:
         "400": { $ref: "#/components/responses/BadRequest" }
         "401": { $ref: "#/components/responses/Unauthorized" }
 
+  /api/v1/partners/candidates:
+    get:
+      tags: [Partners]
+      summary: List partner candidate companies (operator/company admin)
+      description: |
+        Returns companies that are not yet linked as partners for the caller's company.
+        Excludes the caller's own company and existing internal partners.
+      parameters:
+        - in: query
+          name: name
+          schema: { type: string }
+          description: Fuzzy match on company name.
+        - in: query
+          name: address
+          schema: { type: string }
+          description: Fuzzy match on company wallet address.
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PageSize"
+      responses:
+        "200":
+          description: Candidate companies
+          headers:
+            X-Total-Count: { $ref: "#/components/headers/X-Total-Count" }
+            X-Page: { $ref: "#/components/headers/X-Page" }
+            X-Page-Size: { $ref: "#/components/headers/X-Page-Size" }
+            X-Total-Pages: { $ref: "#/components/headers/X-Total-Pages" }
+            Link: { $ref: "#/components/headers/Link" }
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/PartnerCandidate" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
   /api/v1/partners/{id}:
     delete:
       tags: [Partners]
@@ -909,7 +945,13 @@ paths:
   /api/v1/orders/{id}/execute:
     post:
       tags: [Orders]
-      summary: Execute payment (finance; or LC funding)
+      summary: Execute payment (finance; payment orders)
+      description: |
+        Initiates a Cobo transfer for **payment** orders after all approvals are complete.
+
+        For LC funding, use the dedicated two-step flow:
+        1. `/api/v1/orders/{id}/lc/approve`
+        2. `/api/v1/orders/{id}/lc/open`
       parameters:
         - $ref: "#/components/parameters/PathId"
       requestBody:
@@ -919,7 +961,55 @@ paths:
             schema: { $ref: "#/components/schemas/ExecuteInput" }
       responses:
         "200":
-          description: OK
+          description: Updated order with the initiated Cobo transfer
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OrderDTO" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /api/v1/orders/{id}/lc/approve:
+    post:
+      tags: [Orders]
+      summary: LC funding step 1 — approve USDC allowance
+      description: |
+        Starts the LC funding flow by approving the USDC allowance for the LC Factory contract.
+        Requires the same MFA as payment execution and returns the updated order with the new `cobo_tx_id`.
+      parameters:
+        - $ref: "#/components/parameters/PathId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ExecuteInput" }
+      responses:
+        "200":
+          description: Updated order (approval transaction staged)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OrderDTO" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /api/v1/orders/{id}/lc/open:
+    post:
+      tags: [Orders]
+      summary: LC funding step 2 — open LC after approval
+      description: |
+        Calls the LC Factory to open the escrow after the allowance approval transaction is completed.
+        Fails if step 1 has not finished on-chain. Returns the updated order (status -> `pending_release`).
+      parameters:
+        - $ref: "#/components/parameters/PathId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ExecuteInput" }
+      responses:
+        "200":
+          description: Updated order (escrow opened; pending release)
           content:
             application/json:
               schema: { $ref: "#/components/schemas/OrderDTO" }
@@ -946,6 +1036,428 @@ paths:
               schema: { $ref: "#/components/schemas/OrderDTO" }
         "403": { $ref: "#/components/responses/Forbidden" }
         "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /api/v1/trades:
+    post:
+      tags: [Trades]
+      summary: Create trade order (buyer company)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateTradeInput" }
+      responses:
+        "200":
+          description: Created trade
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TradeDTO" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+    get:
+      tags: [Trades]
+      summary: Search trades visible to the caller
+      description: |
+        Filters trades where the caller's company is the buyer or the internal seller.
+        Use `state` to narrow by workflow stage. Pagination headers mirror other list endpoints.
+      parameters:
+        - in: query
+          name: id
+          schema: { type: integer, format: int64 }
+        - in: query
+          name: q
+          schema: { type: string }
+          description: Fuzzy match on trade name or product type.
+        - in: query
+          name: state
+          schema: { $ref: "#/components/schemas/TradeStateEnum" }
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PageSize"
+      responses:
+        "200":
+          description: Trades
+          headers:
+            X-Total-Count: { $ref: "#/components/headers/X-Total-Count" }
+            X-Page: { $ref: "#/components/headers/X-Page" }
+            X-Page-Size: { $ref: "#/components/headers/X-Page-Size" }
+            X-Total-Pages: { $ref: "#/components/headers/X-Total-Pages" }
+            Link: { $ref: "#/components/headers/Link" }
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/TradeDTO" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /api/v1/trades/{id}:
+    get:
+      tags: [Trades]
+      summary: Trade detail
+      parameters:
+        - $ref: "#/components/parameters/PathId"
+      responses:
+        "200":
+          description: Trade
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TradeDTO" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+    patch:
+      tags: [Trades]
+      summary: Update trade (state must be `trade_created`)
+      parameters:
+        - $ref: "#/components/parameters/PathId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateTradeInput" }
+      responses:
+        "200":
+          description: Updated trade
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TradeDTO" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /api/v1/trades/{id}/attachments:
+    get:
+      tags: [Attachments]
+      summary: List trade attachments
+      parameters:
+        - $ref: "#/components/parameters/PathId"
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PageSize"
+      responses:
+        "200":
+          description: Attachments bound to the trade
+          headers:
+            X-Total-Count: { $ref: "#/components/headers/X-Total-Count" }
+            X-Page: { $ref: "#/components/headers/X-Page" }
+            X-Page-Size: { $ref: "#/components/headers/X-Page-Size" }
+            X-Total-Pages: { $ref: "#/components/headers/X-Total-Pages" }
+            Link: { $ref: "#/components/headers/Link" }
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/AttachmentDTO" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /api/v1/trades/{id}/attachments/init:
+    post:
+      tags: [Attachments]
+      summary: Init S3 uploads for a trade (state must be `trade_created`)
+      parameters:
+        - $ref: "#/components/parameters/PathId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [files]
+              properties:
+                files:
+                  type: array
+                  items: { $ref: "#/components/schemas/InitUploadSpec" }
+      responses:
+        "200":
+          description: Presigned PUT URLs
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  uploads:
+                    type: array
+                    items: { $ref: "#/components/schemas/InitUploadResult" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /api/v1/trades/{id}/attachments/complete:
+    post:
+      tags: [Attachments]
+      summary: Complete S3 uploads for a trade
+      parameters:
+        - $ref: "#/components/parameters/PathId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              items: { $ref: "#/components/schemas/CompleteUploadSpec" }
+      responses:
+        "200":
+          description: Finalized attachments
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/AttachmentDTO" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /api/v1/trades/{id}/attachments/adopt:
+    post:
+      tags: [Attachments]
+      summary: Adopt staged files into this trade
+      description: |
+        Moves ready files from a staging group (via `/api/v1/attachments/groups/{key}`) into the trade.
+        Only available while the trade is in `trade_created` state.
+      parameters:
+        - $ref: "#/components/parameters/PathId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [group_key]
+              properties:
+                group_key:
+                  type: string
+                  description: Staging group key to adopt from.
+      responses:
+        "200":
+          description: Adopted attachments
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  adopted:
+                    type: array
+                    items: { $ref: "#/components/schemas/AttachmentDTO" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /api/v1/trades/{id}/attachments/{attid}:
+    delete:
+      tags: [Attachments]
+      summary: Delete a trade attachment (state must be `trade_created`)
+      parameters:
+        - $ref: "#/components/parameters/PathId"
+        - in: path
+          name: attid
+          required: true
+          schema: { type: integer, format: int64 }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OkResponse" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /api/v1/trades/{id}/open-lc:
+    post:
+      tags: [Trades]
+      summary: Open on-chain LC order for the trade (buyer side)
+      parameters:
+        - $ref: "#/components/parameters/PathId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/OpenLCInput" }
+      responses:
+        "200":
+          description: LC order created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OrderDTO" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /api/v1/trades/{id}/ship-confirm:
+    post:
+      tags: [Trades]
+      summary: Seller ship confirmation (LC flow)
+      parameters:
+        - $ref: "#/components/parameters/PathId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ShipConfirmInput" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OkResponse" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /api/v1/trades/{id}/buyer-confirm-shipment:
+    post:
+      tags: [Trades]
+      summary: Buyer confirms shipment (advances LC release)
+      parameters:
+        - $ref: "#/components/parameters/PathId"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/NoteBody" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OkResponse" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /api/v1/trades/{id}/consensus/start:
+    post:
+      tags: [Trades]
+      summary: Start settlement consensus round
+      description: "Round must be 2 or 3. Arrival metrics are accepted when `round=3`."
+      parameters:
+        - $ref: "#/components/parameters/PathId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/StartConsensusInput" }
+      responses:
+        "200":
+          description: Consensus proposal
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TradeConsensus" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /api/v1/trades/{id}/consensus/{cid}/approve:
+    post:
+      tags: [Trades]
+      summary: Approve a consensus proposal
+      parameters:
+        - $ref: "#/components/parameters/PathId"
+        - in: path
+          name: cid
+          required: true
+          schema: { type: integer, format: int64 }
+      responses:
+        "200":
+          description: Updated consensus
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TradeConsensus" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /api/v1/trades/{id}/create-payment:
+    post:
+      tags: [Trades]
+      summary: Create payment order for the approved consensus in a round (payer company)
+      parameters:
+        - $ref: "#/components/parameters/PathId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateTradePaymentInput" }
+      responses:
+        "200":
+          description: Payment order created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OrderDTO" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /api/v1/trades/{id}/consensus/{cid}/record-receipt:
+    post:
+      tags: [Trades]
+      summary: Record on-chain receipt for external seller consensus (buyer company)
+      parameters:
+        - $ref: "#/components/parameters/PathId"
+        - in: path
+          name: cid
+          required: true
+          schema: { type: integer, format: int64 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RecordTradeReceiptInput" }
+      responses:
+        "200":
+          description: Receipt recorded
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TradeReceipt" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /api/v1/trades/{id}/consensus/{cid}/reject:
+    post:
+      tags: [Trades]
+      summary: Reject a consensus proposal (counterparty)
+      parameters:
+        - $ref: "#/components/parameters/PathId"
+        - in: path
+          name: cid
+          required: true
+          schema: { type: integer, format: int64 }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/NoteBody" }
+      responses:
+        "200":
+          description: Updated consensus (status -> rejected)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TradeConsensus" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /api/v1/trades/{id}/consensus/{cid}:
+    patch:
+      tags: [Trades]
+      summary: Update and resubmit a rejected consensus (initiator)
+      parameters:
+        - $ref: "#/components/parameters/PathId"
+        - in: path
+          name: cid
+          required: true
+          schema: { type: integer, format: int64 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateConsensusInput" }
+      responses:
+        "200":
+          description: Resubmitted consensus
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TradeConsensus" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
         "401": { $ref: "#/components/responses/Unauthorized" }
 
   /api/v1/orders/{id}/attachments:
@@ -1468,25 +1980,6 @@ paths:
         "403": { $ref: "#/components/responses/Forbidden" }
         "401": { $ref: "#/components/responses/Unauthorized" }
 
-  /api/v1/lc/releases/{id}/platform-confirm:
-    post:
-      tags: ["LC Release"]
-      summary: Platform confirm (super admin)
-      parameters:
-        - $ref: "#/components/parameters/PathId"
-      requestBody:
-        content:
-          application/json:
-            schema: { $ref: "#/components/schemas/NoteBody" }
-      responses:
-        "200":
-          description: OK
-          content:
-            application/json:
-              schema: { $ref: "#/components/schemas/OkResponse" }
-        "403": { $ref: "#/components/responses/Forbidden" }
-        "401": { $ref: "#/components/responses/Unauthorized" }
-
   /api/v1/transactions/{id}:
     get:
       tags: [Transactions]
@@ -1647,6 +2140,19 @@ components:
     TradeTypeEnum:
       type: string
       enum: [iron_ore, crude_oil]
+    TradeStateEnum:
+      type: string
+      enum:
+        - trade_created
+        - lc_opened
+        - first_settlement_done
+        - consensus2_reached
+        - second_settlement_done
+        - consensus3_reached
+        - third_settlement_done
+    TradeConsensusStatusEnum:
+      type: string
+      enum: [pending_other_approval, approved, rejected]
 
     # ===== Enums =====
     EnumItem:
@@ -1943,6 +2449,15 @@ components:
         wallet_address: { type: string }
         created_by: { type: integer, format: int64 }
 
+    PartnerCandidate:
+      type: object
+      description: Minimal company record returned by `/api/v1/partners/candidates`.
+      required: [id, name, address]
+      properties:
+        id: { type: integer, format: int64 }
+        name: { type: string }
+        address: { type: string }
+
     # ===== Orders =====
     ExecInfo:
       type: object
@@ -2030,16 +2545,236 @@ components:
         description: { type: string, nullable: true }
     ExecuteInput:
       type: object
-      required: [password, email_otp, totp]
+      required: [password, totp]
       properties:
         password: { type: string }
-        email_otp: { type: string }
         totp: { type: string }
+        email_otp:
+          type: string
+          description: Optional email OTP (reserved; currently ignored if provided).
     MarkReceivedInput:
       type: object
       required: [tx_hash]
       properties:
         tx_hash: { type: string }
+
+    # ===== Trades =====
+    TradeDTO:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        buyer_company_id: { type: integer, format: int64 }
+        seller_company_id: { type: integer, format: int64, nullable: true }
+        partner_id: { type: integer, format: int64 }
+        name: { type: string }
+        product_type: { type: string }
+        trade_type: { $ref: "#/components/schemas/TradeTypeEnum" }
+        nominated_wmt: { type: string }
+        nominated_float_bps: { type: integer }
+        base_cargo_value_minor:
+          type: string
+          description: USDC minor units (stringified integer).
+        margin_bps: { type: integer }
+        lc_amount_minor:
+          type: string
+          description: LC amount in USDC minor units (stringified integer).
+        lc_amount:
+          type: string
+          description: Human readable LC amount with thousands separators.
+        lc_issue_date: { type: string, format: date-time, nullable: true }
+        lc_expiry_date: { type: string, format: date-time, nullable: true }
+        days_to_present: { type: integer }
+        description: { type: string }
+        state: { $ref: "#/components/schemas/TradeStateEnum" }
+        lc_order_id: { type: integer, format: int64, nullable: true }
+        ship_vessel_name: { type: string }
+        ship_departure_date: { type: string, format: date-time, nullable: true }
+        bill_of_lading_no: { type: string }
+        loaded_wmt: { type: string }
+        loaded_dmt: { type: string }
+        load_port_moisture_bps: { type: integer }
+        fe_content: { type: string }
+        price: { type: string }
+        load_port_quality_iron_bps: { type: integer }
+        first_settlement_amount_minor:
+          type: string
+          description: First settlement amount in USDC minor units.
+        ship_note: { type: string }
+        arrival_date: { type: string, format: date-time, nullable: true }
+        unload_wmt: { type: string }
+        unload_iron_bps: { type: integer }
+        unload_moisture_bps: { type: integer }
+        final_iron_bps: { type: integer }
+        final_dmt: { type: string }
+        created_by: { type: integer, format: int64 }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    CreateTradeInput:
+      type: object
+      required: [partner_id, name, product_type, nominated_wmt, nominated_float_bps, base_cargo_value, margin_bps, days_to_present]
+      properties:
+        partner_id: { type: integer, format: int64 }
+        name: { type: string }
+        product_type: { type: string }
+        trade_type:
+          $ref: "#/components/schemas/TradeTypeEnum"
+          description: Enumerated trade type used for downstream orders.
+        nominated_wmt:
+          type: string
+          description: Nomination quantity (WMT) as a string to preserve precision.
+        nominated_float_bps:
+          type: integer
+          description: Basis points applied to the nominated WMT (may be negative).
+        base_cargo_value:
+          type: string
+          description: USDC amount as a decimal string before margin.
+        margin_bps:
+          type: integer
+          description: Margin in basis points added to the base cargo value.
+        lc_issue_date: { type: string, format: date-time, nullable: true }
+        lc_expiry_date: { type: string, format: date-time, nullable: true }
+        days_to_present:
+          type: integer
+          description: Days allowed for the seller to present documents.
+        description: { type: string }
+    UpdateTradeInput:
+      type: object
+      properties:
+        name: { type: string, nullable: true }
+        product_type: { type: string, nullable: true }
+        trade_type: { $ref: "#/components/schemas/TradeTypeEnum" }
+        nominated_wmt: { type: string, nullable: true }
+        nominated_float_bps: { type: integer, nullable: true }
+        base_cargo_value: { type: string, nullable: true }
+        margin_bps: { type: integer, nullable: true }
+        lc_issue_date: { type: string, format: date-time, nullable: true }
+        lc_expiry_date: { type: string, format: date-time, nullable: true }
+        days_to_present: { type: integer, nullable: true }
+        description: { type: string, nullable: true }
+    OpenLCInput:
+      type: object
+      required: [lc_name]
+      properties:
+        lc_name: { type: string }
+        save_and_submit:
+          type: boolean
+          description: Submit the generated LC order immediately when true.
+    ShipConfirmInput:
+      type: object
+      required:
+        - vessel_name
+        - bill_of_lading_no
+        - loaded_wmt
+        - loaded_dmt
+        - load_port_moisture_bps
+        - fe_content
+        - price
+        - load_port_quality_iron_bps
+        - first_settlement_amount
+      properties:
+        vessel_name: { type: string }
+        departure_date: { type: string, format: date-time, nullable: true }
+        bill_of_lading_no: { type: string }
+        loaded_wmt: { type: string }
+        loaded_dmt: { type: string }
+        load_port_moisture_bps: { type: integer }
+        fe_content: { type: string }
+        price: { type: string }
+        load_port_quality_iron_bps: { type: integer }
+        first_settlement_amount:
+          type: string
+          description: Decimal USDC amount moved during the first settlement.
+        note: { type: string }
+    StartConsensusInput:
+      type: object
+      required: [round, buyer_pays, amount]
+      properties:
+        round:
+          type: integer
+          enum: [2, 3]
+          description: Settlement round (2 = second settlement, 3 = third settlement).
+        buyer_pays:
+          type: boolean
+          description: true when the buyer pays the seller; false when the seller pays the buyer.
+        amount:
+          type: string
+          description: Consensus amount as a decimal USDC string.
+        note: { type: string }
+        attachment_group_key:
+          type: string
+          description: Optional staging group key for attachments (currently ignored).
+        arrival_date: { type: string, format: date-time, nullable: true }
+        unload_wmt: { type: string, nullable: true }
+        unload_iron_bps: { type: integer, nullable: true }
+        unload_moisture_bps: { type: integer, nullable: true }
+        final_iron_bps: { type: integer, nullable: true }
+        final_dmt: { type: string, nullable: true }
+    CreateTradePaymentInput:
+      type: object
+      required: [round, order_name]
+      properties:
+        round:
+          type: integer
+          enum: [2, 3]
+          description: Target consensus round.
+        order_name: { type: string }
+        save_and_submit:
+          type: boolean
+          description: Submit the payment order immediately when true.
+    RecordTradeReceiptInput:
+      type: object
+      required: [tx_hash]
+      properties:
+        tx_hash: { type: string }
+    TradeConsensus:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        trade_id: { type: integer, format: int64 }
+        round:
+          type: integer
+          enum: [2, 3]
+        initiator_company_id: { type: integer, format: int64 }
+        buyer_pays: { type: boolean }
+        amount_minor:
+          type: string
+          description: Consensus amount in USDC minor units (stringified integer).
+        note: { type: string }
+        status: { $ref: "#/components/schemas/TradeConsensusStatusEnum" }
+        approved_at: { type: string, format: date-time, nullable: true }
+        approver_company_id: { type: integer, format: int64, nullable: true }
+        rejected_at: { type: string, format: date-time, nullable: true }
+        reject_note: { type: string }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    TradeReceipt:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        trade_id: { type: integer, format: int64 }
+        round:
+          type: integer
+          enum: [2, 3]
+        amount_minor:
+          type: string
+          description: Receipt amount in USDC minor units (stringified integer).
+        asset: { type: string }
+        tx_hash: { type: string }
+        recorded_by: { type: integer, format: int64 }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    UpdateConsensusInput:
+      type: object
+      properties:
+        buyer_pays: { type: boolean, nullable: true }
+        amount: { type: string, nullable: true }
+        note: { type: string, nullable: true }
+        arrival_date: { type: string, format: date-time, nullable: true }
+        unload_wmt: { type: string, nullable: true }
+        unload_iron_bps: { type: integer, nullable: true }
+        unload_moisture_bps: { type: integer, nullable: true }
+        final_iron_bps: { type: integer, nullable: true }
+        final_dmt: { type: string, nullable: true }
 
     # ===== Attachments =====
     AttachmentDTO:
