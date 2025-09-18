@@ -34,7 +34,7 @@ info:
     #### 情况一：内部卖方（支持LC）
 
     状态 `trade_created`
-    - 买方业务员用 `POST /api/v1/trades` 创建贸易单。必填字段：`partner_id,name,product_type,nominated_wmt,nominated_float_bps,base_cargo_value,margin_bps,days_to_present`；常用可选项：`trade_type,description,lc_issue_date,lc_expiry_date`。
+    - 买方业务员用 `POST /api/v1/trades` 创建贸易单。必填字段：`partner_id,name,product_type,nominated_wmt,nominated_float_bps,base_cargo_value,margin_bps,days_to_present`；常用可选项：`description,lc_issue_date,lc_expiry_date`。
     - 需要链上信用证时，保留在此状态调用 `POST /api/v1/trades/{id}/open-lc`。必填 `lc_name`，可带 `save_and_submit=true` 直接提交审批；审批与链上签名在订单模块内完成。
 
     状态 `lc_opened`
@@ -241,15 +241,48 @@ paths:
                         label_zh: 提单关闭
                         description: "Rejected at L2 or L1; shown in Completed for auditability."
                         tag_color: "#ff4d4f"
-                    trade_types:
-                      - value: iron_ore
-                        label: Iron Ore
-                        label_zh: 铁矿石
-                        tag_color: "#8c8c8c"
-                      - value: crude_oil
-                        label: Crude Oil
-                        label_zh: 原油
-                        tag_color: "#262626"
+                    product_types:
+                      - value: pilbara_blend_fines
+                        label: Pilbara Blend Fines
+                        label_zh: PB粉
+                        tag_color: "#5B8FF9"
+                      - value: newman_fines
+                        label: Newman Fines
+                        label_zh: 纽曼粉
+                        tag_color: "#61DDAA"
+                      - value: carajas_fines
+                        label: Carajas Fines
+                        label_zh: 卡粉
+                        tag_color: "#F6BD16"
+                    trade_states:
+                      - value: trade_created
+                        label: Trade Created
+                        label_zh: 贸易创建成功
+                        tag_color: "#1890ff"
+                      - value: lc_opened
+                        label: LC Opened
+                        label_zh: 信用证开立成功
+                        tag_color: "#722ed1"
+                      - value: first_settlement_done
+                        label: First Settlement Done
+                        label_zh: 第一次结算完成
+                        tag_color: "#52c41a"
+                      - value: consensus2_reached
+                        label: Consensus Round 2
+                        label_zh: 二次结算共识达成
+                        tag_color: "#13c2c2"
+                      - value: second_settlement_done
+                        label: Second Settlement Done
+                        label_zh: 第二次结算完成
+                        tag_color: "#fa8c16"
+                      - value: consensus3_reached
+                        label: Consensus Round 3
+                        label_zh: 三次结算共识达成
+                        tag_color: "#ff4d4f"
+                      - value: third_settlement_done
+                        label: Third Settlement Done
+                        label_zh: 第三次结算完成
+                        tag_color: "#2f54eb"
                     lc_release_status:
                       - value: await_seller_confirm
                         label: Await Seller Confirmation
@@ -874,8 +907,8 @@ paths:
             type: array
             items: { $ref: "#/components/schemas/OrderStatusEnum" }
         - in: query
-          name: trade_type
-          schema: { $ref: "#/components/schemas/TradeTypeEnum" }
+          name: product_type
+          schema: { $ref: "#/components/schemas/TradeProductTypeEnum" }
         - in: query
           name: q
           schema: { type: string }
@@ -2189,8 +2222,8 @@ paths:
           name: partner_q
           schema: { type: string }
         - in: query
-          name: trade_type
-          schema: { $ref: "#/components/schemas/TradeTypeEnum" }
+          name: product_type
+          schema: { $ref: "#/components/schemas/TradeProductTypeEnum" }
         - in: query
           name: status
           schema:
@@ -2428,9 +2461,9 @@ components:
         - payment_received
         - payment_completed
         - order_closed
-    TradeTypeEnum:
+    TradeProductTypeEnum:
       type: string
-      enum: [iron_ore, crude_oil]
+      enum: [pilbara_blend_fines, newman_fines, carajas_fines]
     TradeStateEnum:
       type: string
       enum:
@@ -2480,7 +2513,10 @@ components:
         order_status:
           type: array
           items: { $ref: "#/components/schemas/EnumItem" }
-        trade_types:
+        product_types:
+          type: array
+          items: { $ref: "#/components/schemas/EnumItem" }
+        trade_states:
           type: array
           items: { $ref: "#/components/schemas/EnumItem" }
         lc_release_status:
@@ -2788,7 +2824,7 @@ components:
         type: { $ref: "#/components/schemas/OrderTypeEnum" }
         status: { $ref: "#/components/schemas/OrderStatusEnum" }
         name: { type: string }
-        trade_type: { $ref: "#/components/schemas/TradeTypeEnum" }
+        product_type: { $ref: "#/components/schemas/TradeProductTypeEnum" }
         partner_id: { type: integer, format: int64 }
         partner_wallet: { type: string }
         amount_minor: { type: integer, format: int64 }
@@ -2827,12 +2863,12 @@ components:
           nullable: true
     CreateOrderInput:
       type: object
-      required: [type, name, trade_type, partner_id, amount]
+      required: [type, name, product_type, partner_id, amount]
       properties:
         type: { $ref: "#/components/schemas/OrderTypeEnum" }
         name: { type: string }
-        trade_type:
-          $ref: "#/components/schemas/TradeTypeEnum"
+        product_type:
+          $ref: "#/components/schemas/TradeProductTypeEnum"
         partner_id: { type: integer, format: int64 }
         amount: { type: string, description: "Decimal string" }
         asset:
@@ -2851,7 +2887,7 @@ components:
       type: object
       properties:
         name: { type: string, nullable: true }
-        trade_type: { $ref: "#/components/schemas/TradeTypeEnum" }
+        product_type: { $ref: "#/components/schemas/TradeProductTypeEnum" }
         partner_id: { type: integer, format: int64, nullable: true }
         amount: { type: string, nullable: true }
         asset: { type: string, nullable: true }
@@ -2883,8 +2919,7 @@ components:
         seller_company_id: { type: integer, format: int64, nullable: true }
         partner_id: { type: integer, format: int64 }
         name: { type: string }
-        product_type: { type: string }
-        trade_type: { $ref: "#/components/schemas/TradeTypeEnum" }
+        product_type: { $ref: "#/components/schemas/TradeProductTypeEnum" }
         nominated_wmt: { type: string }
         nominated_float_bps: { type: integer }
         base_cargo_value_minor:
@@ -2951,15 +2986,10 @@ components:
             Trade title displayed in lists and dashboards.
             中文：贸易单标题，展示在列表与待办里。
         product_type:
-          type: string
+          allOf: [{ $ref: "#/components/schemas/TradeProductTypeEnum" }]
           description: |
-            Free-form product description (for example "Fines 62%").
-            中文：货物类型描述，例如“铁矿粉 62%”。
-        trade_type:
-          allOf: [{ $ref: "#/components/schemas/TradeTypeEnum" }]
-          description: |
-            Enumerated trade type used for downstream orders.
-            中文：贸易类型枚举，用于后续提单默认值。
+            Enumerated product category (Pilbara / Newman / Carajas fines).
+            中文：贸易货物品种枚举，仅可填 PB粉/纽曼粉/卡粉。
         nominated_wmt:
           type: string
           description: |
@@ -3008,8 +3038,9 @@ components:
       type: object
       properties:
         name: { type: string, nullable: true }
-        product_type: { type: string, nullable: true }
-        trade_type: { $ref: "#/components/schemas/TradeTypeEnum" }
+        product_type:
+          allOf: [{ $ref: "#/components/schemas/TradeProductTypeEnum" }]
+          nullable: true
         nominated_wmt: { type: string, nullable: true }
         nominated_float_bps: { type: integer, nullable: true }
         base_cargo_value: { type: string, nullable: true }
@@ -3397,7 +3428,7 @@ components:
       properties:
         order_id: { type: integer, format: int64 }
         name: { type: string }
-        trade_type: { $ref: "#/components/schemas/TradeTypeEnum" }
+        product_type: { $ref: "#/components/schemas/TradeProductTypeEnum" }
         partner: { type: string }
         escrow_address: { type: string }
         escrow_address_url: { type: string }
@@ -3419,7 +3450,7 @@ components:
         type: { $ref: "#/components/schemas/OrderTypeEnum" }
         status: { $ref: "#/components/schemas/OrderStatusEnum" }
         name: { type: string }
-        trade_type: { $ref: "#/components/schemas/TradeTypeEnum" }
+        product_type: { $ref: "#/components/schemas/TradeProductTypeEnum" }
         partner_id: { type: integer, format: int64 }
         partner_wallet: { type: string }
         amount_minor: { type: integer, format: int64 }
