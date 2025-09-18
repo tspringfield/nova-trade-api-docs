@@ -40,10 +40,16 @@ tags:
   - name: Partners
   - name: Orders
   - name: Trades
+    description: |
+      Trade lifecycle APIs. Follow the buyer/seller workflow: create trade → optional LC → consensus rounds.
+      贸易相关接口。按流程理解：创建贸易单 → （可选）开立信用证 → 两轮共识与付款。
   - name: Attachments
   - name: Wallets
   - name: Dashboard
   - name: LC Release
+    description: |
+      Escrow release tasks created by LC orders. Seller confirms shipment, buyer confirms release.
+      LC放款相关接口。卖方确认发货，买方确认放款，查看托管账户信息。
   - name: Meta
   - name: Transactions
 
@@ -1032,6 +1038,10 @@ paths:
         For LC funding, use the dedicated two-step flow:
         1. `/api/v1/orders/{id}/lc/approve`
         2. `/api/v1/orders/{id}/lc/open`
+
+        中文说明：
+        - 财务在支付提单审批完成后调用，触发Cobo转账。
+        - LC开立不要用此接口，请按 `/orders/{id}/lc/approve` → `/orders/{id}/lc/open` 两步执行。
       parameters:
         - $ref: "#/components/parameters/PathId"
       requestBody:
@@ -1056,6 +1066,10 @@ paths:
       description: |
         Starts the LC funding flow by approving the USDC allowance for the LC Factory contract.
         Requires the same MFA as payment execution and returns the updated order with the new `cobo_tx_id`.
+
+        中文说明：
+        - LC开立第一步，先给LC工厂合约授权USDC额度。
+        - 与支付执行相同，需要密码+TOTP（可选邮件OTP）。返回值会携带新的 `cobo_tx_id`。
       parameters:
         - $ref: "#/components/parameters/PathId"
       requestBody:
@@ -1080,6 +1094,10 @@ paths:
       description: |
         Calls the LC Factory to open the escrow after the allowance approval transaction is completed.
         Fails if step 1 has not finished on-chain. Returns the updated order (status -> `pending_release`).
+
+        中文说明：
+        - LC开立第二步，在授权交易确认后调用工厂合约创建托管账户。
+        - 如果第一步交易还未上链成功会报错。成功后订单状态进入 `pending_release`，等待后续第一次结算（LC放款）流程。
       parameters:
         - $ref: "#/components/parameters/PathId"
       requestBody:
@@ -1122,6 +1140,17 @@ paths:
     post:
       tags: [Trades]
       summary: Create trade order (buyer company)
+      description: |
+        Buyer operator creates the trade record before any LC or settlement actions.
+        Prerequisites:
+        - Caller company must be the buyer in the platform.
+        - `partner_id` should come from `/api/v1/partners`; LC is only available when the partner is an internal company.
+        Result: new trade in `trade_created`, visible to both sides.
+
+        中文说明：
+        - 买方业务员在流程开始时创建贸易单。
+        - 需要合作方ID（从 `/api/v1/partners` 获取）；只有内部合作方才能后续开LC。
+        - 创建成功后状态为 `trade_created`，买卖双方都能看到基础信息。
       requestBody:
         required: true
         content:
@@ -1142,6 +1171,10 @@ paths:
       description: |
         Filters trades where the caller's company is the buyer or the internal seller.
         Use `state` to narrow by workflow stage. Pagination headers mirror other list endpoints.
+
+        中文说明：
+        - 只返回调用方公司是买方或内部卖方的贸易单。
+        - 可用 `state` 查询不同阶段，分页返回格式与其他列表一致。
       parameters:
         - in: query
           name: id
@@ -1176,6 +1209,13 @@ paths:
     get:
       tags: [Trades]
       summary: Trade detail
+      description: |
+        Returns the full trade object including LC status, consensus rounds, and attachment metadata.
+        Use this after each action to refresh the UI state.
+
+        中文说明：
+        - 返回完整贸易单信息（含LC进度、共识轮、附件信息）。
+        - 每次操作后调用以刷新前端画面。
       parameters:
         - $ref: "#/components/parameters/PathId"
       responses:
@@ -1189,6 +1229,13 @@ paths:
     patch:
       tags: [Trades]
       summary: Update trade (state must be `trade_created`)
+      description: |
+        Buyer operator edits basic cargo or LC info before LC opening.
+        Only available while `state=trade_created`; other states lock the initial fields.
+
+        中文说明：
+        - 买方业务员在开LC之前修正货物/信用证基础信息。
+        - 仅在 `trade_created` 状态可用，进入后续阶段后字段会锁定。
       parameters:
         - $ref: "#/components/parameters/PathId"
       requestBody:
@@ -1346,6 +1393,18 @@ paths:
     post:
       tags: [Trades]
       summary: Open on-chain LC order for the trade (buyer side)
+      description: |
+        Creates an `onchain_lc` order linked to the trade so finance can fund the escrow.
+        Prerequisites:
+        - Trade must be in `trade_created` and the seller must be an internal company.
+        - Buyer operator provides `lc_name`, optional `save_and_submit=true` to send for approvals immediately.
+        Result: LC order appears in the buyer workflow; follow `/api/v1/orders/{id}/lc/approve` then `/api/v1/orders/{id}/lc/open` to fund.
+
+        中文说明：
+        - 为贸易单生成一个链上LC订单，方便后续走审批与开立。
+        - 需要贸易单状态为 `trade_created` 且卖方是系统内部公司。
+        - 买方业务员填写 `lc_name`，`save_and_submit=true` 时立即提交审批。
+        - 成功后LC订单进入订单列表，财务通过 `/orders/{id}/lc/approve` → `/orders/{id}/lc/open` 完成LC开立，然后等待后续放款流程。
       parameters:
         - $ref: "#/components/parameters/PathId"
       requestBody:
@@ -1367,6 +1426,18 @@ paths:
     post:
       tags: [Trades]
       summary: Seller ship confirmation (LC flow)
+      description: |
+        Seller operator records shipment facts and triggers first settlement when the LC escrow holds funds.
+        Prerequisites:
+        - Trade state `lc_opened` (LC funded and pending release).
+        - Seller provides vessel/BOL data and the first settlement amount (`first_settlement_amount`).
+        Result: trade stores the seller data and waits for the buyer confirmation step.
+        After buyer confirmation and on-chain release, the trade state becomes `first_settlement_done`.
+
+        中文说明：
+        - 卖方业务员提交装船信息并触发第一次结算，前提是LC托管账户已到位。
+        - 需要贸易单状态为 `lc_opened`，表单中填写船名、提单号、结算金额等。
+        - 提交后贸易单进入待买方确认阶段。
       parameters:
         - $ref: "#/components/parameters/PathId"
       requestBody:
@@ -1388,6 +1459,17 @@ paths:
     post:
       tags: [Trades]
       summary: Buyer confirms shipment (advances LC release)
+      description: |
+        Buyer operator approves the seller shipment data so finance/platform can release escrow funds.
+        Call after reviewing the seller submission from `/trade/{id}` detail.
+        Result: release workflow moves forward; finance/platform will trigger the on-chain payout.
+        Once the release transaction succeeds, the trade state transitions to `first_settlement_done`.
+
+        中文说明：
+        - 买方业务员审核卖方装船信息后点击确认，表示同意放款。
+        - 在前端查看贸易单详情后调用即可，必要时附备注。
+        - 成功后进入放款流程，财务/平台会在链上放款。
+        - 放款交易成功后，贸易单状态会变为 `first_settlement_done`。
       parameters:
         - $ref: "#/components/parameters/PathId"
       requestBody:
@@ -1408,7 +1490,19 @@ paths:
     post:
       tags: [Trades]
       summary: Start settlement consensus round
-      description: "Round must be 2 or 3. Arrival metrics are accepted when `round=3`."
+      description: |
+        Initiates a settlement consensus for round 2 (after first LC release) or round 3 (after second settlement).
+        Prerequisites:
+        - Round 2: trade state should be `first_settlement_done`.
+        - Round 3: trade state should be `second_settlement_done`; include arrival metrics for final settlement.
+        - Either buyer or seller operator can initiate; counterparty must later approve.
+        Result: consensus status becomes `pending_other_approval` and awaits `/approve` or `/reject`.
+
+        中文说明：
+        - 启动第2轮或第3轮“多退少补”共识。
+        - 第2轮需要贸易单已完成第一次结算（`first_settlement_done`）。
+        - 第3轮需要贸易单已完成第二次结算（`second_settlement_done`），并可提交到港数据。
+        - 买方或卖方业务员均可发起，状态会变为待对方审核。
       parameters:
         - $ref: "#/components/parameters/PathId"
       requestBody:
@@ -1430,6 +1524,15 @@ paths:
     post:
       tags: [Trades]
       summary: Approve a consensus proposal
+      description: |
+        Counterparty accepts the pending consensus for round 2 or 3.
+        After approval, trade state moves to `consensus2_reached` or `consensus3_reached` depending on the round.
+        Next step: payer company creates a payment order or records a receipt.
+
+        中文说明：
+        - 对方公司确认当前共识内容。
+        - 通过后贸易单状态分别变为 `consensus2_reached` 或 `consensus3_reached`。
+        - 之后付款方需要创建支付订单或登记收款。
       parameters:
         - $ref: "#/components/parameters/PathId"
         - in: path
@@ -1452,6 +1555,18 @@ paths:
     post:
       tags: [Trades]
       summary: Create payment order for the approved consensus in a round (payer company)
+      description: |
+        Generates a `payment` order linked to the trade after consensus is approved.
+        Prerequisites:
+        - Consensus for the requested `round` must be `approved`.
+        - Caller company must match the payer side determined by the consensus (`buyer_pays`).
+        - Use `save_and_submit=true` to send the payment order into the approval queue immediately.
+        Result: order appears in the payer's order list; when fully executed the trade moves to the next state (`second_settlement_done` or `third_settlement_done`).
+
+        中文说明：
+        - 共识达成后由需付款的一方创建支付汇款提单。
+        - 只有共识状态为已通过、且调用方就是付款方时才能创建。
+        - 可设置 `save_and_submit=true` 直接提交审批；审批和付款完成后贸易单将进入下一阶段。
       parameters:
         - $ref: "#/components/parameters/PathId"
       requestBody:
@@ -1483,6 +1598,14 @@ paths:
     post:
       tags: [Trades]
       summary: Record on-chain receipt for external seller consensus (buyer company)
+      description: |
+        Buyer records an external seller's on-chain repayment when consensus requires the seller to pay.
+        Use when the seller is outside the platform and no payment order is created.
+        The API validates that the receipt amount matches the approved consensus for the round.
+
+        中文说明：
+        - 当卖方是外部公司且需要向买方付款时，买方在链上收到款后调用此接口登记。
+        - 不会生成支付提单；系统会校验金额与共识一致。
       parameters:
         - $ref: "#/components/parameters/PathId"
         - in: path
@@ -1511,6 +1634,13 @@ paths:
     post:
       tags: [Trades]
       summary: Reject a consensus proposal (counterparty)
+      description: |
+        Counterparty declines the current consensus details and optionally leaves a note for the initiator.
+        After rejection the initiator can adjust values via `/consensus/{round}` PATCH and resubmit.
+
+        中文说明：
+        - 对方公司不接受该共识，可附备注说明原因。
+        - 发起方可用 PATCH 接口修改后再次提交。
       parameters:
         - $ref: "#/components/parameters/PathId"
         - in: path
@@ -1538,6 +1668,13 @@ paths:
     patch:
       tags: [Trades]
       summary: Update and resubmit a rejected consensus (initiator)
+      description: |
+        Initiator revises a previously rejected consensus and moves it back to `pending_other_approval`.
+        Only the original initiator company may call this endpoint.
+
+        中文说明：
+        - 由共识发起方修改已被拒绝的内容，并再次提交给对方审核。
+        - 只有最初的发起方公司可以调用。
       parameters:
         - $ref: "#/components/parameters/PathId"
         - in: path
@@ -2700,6 +2837,9 @@ components:
     # ===== Trades =====
     TradeDTO:
       type: object
+      description: |
+        Trade view returned by list/detail endpoints.
+        中文：贸易单详情返回结构。
       properties:
         id: { type: integer, format: int64 }
         buyer_company_id: { type: integer, format: int64 }
@@ -2724,8 +2864,18 @@ components:
         lc_expiry_date: { type: string, format: date-time, nullable: true }
         days_to_present: { type: integer }
         description: { type: string }
-        state: { $ref: "#/components/schemas/TradeStateEnum" }
-        lc_order_id: { type: integer, format: int64, nullable: true }
+        state:
+          allOf: [{ $ref: "#/components/schemas/TradeStateEnum" }]
+          description: |
+            Workflow state (`trade_created`, `lc_opened`, ...).
+            中文：贸易流程状态（如 `trade_created`、`lc_opened` 等）。
+        lc_order_id:
+          type: integer
+          format: int64
+          nullable: true
+          description: |
+            Related LC order ID (null when LC not created).
+            中文：关联的LC订单ID（未开LC则为空）。
         ship_vessel_name: { type: string }
         ship_departure_date: { type: string, format: date-time, nullable: true }
         bill_of_lading_no: { type: string }
@@ -2752,30 +2902,71 @@ components:
       type: object
       required: [partner_id, name, product_type, nominated_wmt, nominated_float_bps, base_cargo_value, margin_bps, days_to_present]
       properties:
-        partner_id: { type: integer, format: int64 }
-        name: { type: string }
-        product_type: { type: string }
+        partner_id:
+          type: integer
+          format: int64
+          description: |
+            Partner relation ID from `/api/v1/partners`.
+            中文：合作方ID，来自 `/api/v1/partners`。关联内部公司时可继续LC流程。
+        name:
+          type: string
+          description: |
+            Trade title displayed in lists and dashboards.
+            中文：贸易单标题，展示在列表与待办里。
+        product_type:
+          type: string
+          description: |
+            Free-form product description (for example "Fines 62%").
+            中文：货物类型描述，例如“铁矿粉 62%”。
         trade_type:
-          $ref: "#/components/schemas/TradeTypeEnum"
-          description: Enumerated trade type used for downstream orders.
+          allOf: [{ $ref: "#/components/schemas/TradeTypeEnum" }]
+          description: |
+            Enumerated trade type used for downstream orders.
+            中文：贸易类型枚举，用于后续提单默认值。
         nominated_wmt:
           type: string
-          description: Nomination quantity (WMT) as a string to preserve precision.
+          description: |
+            Planned wet metric tonnage; keep as string to preserve decimals.
+            中文：计划装船量（湿吨），用字符串保持精度。
         nominated_float_bps:
           type: integer
-          description: Basis points applied to the nominated WMT (may be negative).
+          description: |
+            Basis points applied to the nominated WMT (may be negative).
+            中文：对提名数量的浮动基点，可为负数。
         base_cargo_value:
           type: string
-          description: USDC amount as a decimal string before margin.
+          description: |
+            Cargo value before margin, decimal USDC string (e.g., "1000000").
+            中文：基础货值（USDC 十进制字符串，如 “1000000”）。
         margin_bps:
           type: integer
-          description: Margin in basis points added to the base cargo value.
-        lc_issue_date: { type: string, format: date-time, nullable: true }
-        lc_expiry_date: { type: string, format: date-time, nullable: true }
+          description: |
+            Margin in basis points added to the base cargo value. LC amount = base value × (1 + margin / 10000).
+            中文：保证金比例（基点）。LC金额 = 基础货值 × (1 + 保证金/10000)。
+        lc_issue_date:
+          type: string
+          format: date-time
+          nullable: true
+          description: |
+            Optional LC issue date (not validated by backend).
+            中文：信用证开立日期（可选，后端不校验）。
+        lc_expiry_date:
+          type: string
+          format: date-time
+          nullable: true
+          description: |
+            Optional LC expiry date.
+            中文：信用证到期日期（可选）。
         days_to_present:
           type: integer
-          description: Days allowed for the seller to present documents.
-        description: { type: string }
+          description: |
+            Days allowed for the seller to present documents.
+            中文：卖方交单期限（天数）。
+        description:
+          type: string
+          description: |
+            Remarks visible to both parties.
+            中文：双方可见的备注说明。
     UpdateTradeInput:
       type: object
       properties:
@@ -2794,12 +2985,21 @@ components:
       type: object
       required: [lc_name]
       properties:
-        lc_name: { type: string }
+        lc_name:
+          type: string
+          description: |
+            Display name for the LC order (e.g., "LC ACME → SELLCO #1").
+            中文：LC订单名称，例如 “LC ACME → SELLCO #1”。
         save_and_submit:
           type: boolean
-          description: Submit the generated LC order immediately when true.
+          description: |
+            Submit the generated LC order immediately when true.
+            中文：为 `true` 时立即提交LC订单进入审批流程。
     ShipConfirmInput:
       type: object
+      description: |
+        Seller shipment submission for the first settlement.
+        中文：卖方在第一次结算时提交的装船信息。
       required:
         - vessel_name
         - bill_of_lading_no
@@ -2811,43 +3011,133 @@ components:
         - load_port_quality_iron_bps
         - first_settlement_amount
       properties:
-        vessel_name: { type: string }
-        departure_date: { type: string, format: date-time, nullable: true }
-        bill_of_lading_no: { type: string }
-        loaded_wmt: { type: string }
-        loaded_dmt: { type: string }
-        load_port_moisture_bps: { type: integer }
-        fe_content: { type: string }
-        price: { type: string }
-        load_port_quality_iron_bps: { type: integer }
+        vessel_name:
+          type: string
+          description: |
+            Vessel name shown on shipping docs.
+            中文：船名。
+        departure_date:
+          type: string
+          format: date-time
+          nullable: true
+          description: |
+            Actual departure date (optional).
+            中文：实际开船日期（可选）。
+        bill_of_lading_no:
+          type: string
+          description: |
+            Bill of Lading (B/L) number.
+            中文：提单号。
+        loaded_wmt:
+          type: string
+          description: |
+            Loaded wet metric tonnage.
+            中文：实际装船量（湿吨）。
+        loaded_dmt:
+          type: string
+          description: |
+            Loaded dry metric tonnage.
+            中文：实际装船量（干吨）。
+        load_port_moisture_bps:
+          type: integer
+          description: |
+            Moisture at load port in basis points.
+            中文：装港水分（基点）。
+        fe_content:
+          type: string
+          description: |
+            Iron content reported at load port.
+            中文：装港铁含量。
+        price:
+          type: string
+          description: |
+            Price used for first settlement, decimal string.
+            中文：第一次结算价格（十进制字符串）。
+        load_port_quality_iron_bps:
+          type: integer
+          description: |
+            Quality inspection iron content (basis points).
+            中文：装港品质化验铁含量（基点）。
         first_settlement_amount:
           type: string
-          description: Decimal USDC amount moved during the first settlement.
-        note: { type: string }
+          description: |
+            Decimal USDC amount moved during the first settlement.
+            中文：第一次结算应支付的金额（USDC十进制字符串）。
+        note:
+          type: string
+          description: |
+            Optional remark for buyer reference.
+            中文：可选备注，给买方查看。
     StartConsensusInput:
       type: object
+      description: |
+        Settlement consensus payload for round 2 or 3.
+        中文：第2/第3轮多退少补共识请求体。
       required: [round, buyer_pays, amount]
       properties:
         round:
           type: integer
           enum: [2, 3]
-          description: Settlement round (2 = second settlement, 3 = third settlement).
+          description: |
+            Settlement round (2 = second settlement, 3 = third settlement).
+            中文：结算轮次（2=第二次结算，3=第三次结算）。
         buyer_pays:
           type: boolean
-          description: true when the buyer pays the seller; false when the seller pays the buyer.
+          description: |
+            true when the buyer pays the seller; false when the seller pays the buyer.
+            中文：为 true 时买方付款，为 false 时卖方付款。
         amount:
           type: string
-          description: Consensus amount as a decimal USDC string.
-        note: { type: string }
+          description: |
+            Consensus amount as a decimal USDC string.
+            中文：共识金额（USDC十进制字符串）。
+        note:
+          type: string
+          description: |
+            Optional explanation for the counterparty.
+            中文：可选说明，告知对方原因。
         attachment_group_key:
           type: string
-          description: Optional staging group key for attachments (currently ignored).
-        arrival_date: { type: string, format: date-time, nullable: true }
-        unload_wmt: { type: string, nullable: true }
-        unload_iron_bps: { type: integer, nullable: true }
-        unload_moisture_bps: { type: integer, nullable: true }
-        final_iron_bps: { type: integer, nullable: true }
-        final_dmt: { type: string, nullable: true }
+          description: |
+            Optional staging group key for attachments (currently ignored).
+            中文：可选附件分组键（当前忽略）。
+        arrival_date:
+          type: string
+          format: date-time
+          nullable: true
+          description: |
+            Arrival date (round 3 only).
+            中文：到港日期（仅第3轮使用）。
+        unload_wmt:
+          type: string
+          nullable: true
+          description: |
+            Unloaded wet metric tonnage.
+            中文：实际卸货量（湿吨）。
+        unload_iron_bps:
+          type: integer
+          nullable: true
+          description: |
+            Unload port iron content in basis points.
+            中文：卸港铁含量（基点）。
+        unload_moisture_bps:
+          type: integer
+          nullable: true
+          description: |
+            Unload port moisture in basis points.
+            中文：卸港水分（基点）。
+        final_iron_bps:
+          type: integer
+          nullable: true
+          description: |
+            Final averaged iron content (basis points).
+            中文：最终铁含量平均值（基点）。
+        final_dmt:
+          type: string
+          nullable: true
+          description: |
+            Final dry metric tonnage.
+            中文：最终干吨数。
     CreateTradePaymentInput:
       type: object
       required: [round, order_name]
@@ -2855,16 +3145,28 @@ components:
         round:
           type: integer
           enum: [2, 3]
-          description: Target consensus round.
-        order_name: { type: string }
+          description: |
+            Target consensus round for the payment order.
+            中文：支付订单对应的共识轮次。
+        order_name:
+          type: string
+          description: |
+            Order title shown in the payment list.
+            中文：支付提单名称。
         save_and_submit:
           type: boolean
-          description: Submit the payment order immediately when true.
+          description: |
+            Submit the payment order immediately when true.
+            中文：为 true 时立即提交审批。
     RecordTradeReceiptInput:
       type: object
       required: [tx_hash]
       properties:
-        tx_hash: { type: string }
+        tx_hash:
+          type: string
+          description: |
+            On-chain transaction hash recorded as proof of payment.
+            中文：链上交易哈希，用作付款凭证。
     TradeConsensus:
       type: object
       properties:
