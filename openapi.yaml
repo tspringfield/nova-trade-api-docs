@@ -29,6 +29,43 @@ info:
     - If `page` exceeds the last page, the array may be empty.
     - If `page_size` is greater than the server maximum, it may be clamped.
 
+    ### 贸易生命周期流程（给前端同学）
+
+    #### 情况一：内部卖方（支持LC）
+
+    状态 `trade_created`
+    - 买方业务员用 `POST /api/v1/trades` 创建贸易单。必填字段：`partner_id,name,product_type,nominated_wmt,nominated_float_bps,base_cargo_value,margin_bps,days_to_present`；常用可选项：`trade_type,description,lc_issue_date,lc_expiry_date`。
+    - 需要链上信用证时，保留在此状态调用 `POST /api/v1/trades/{id}/open-lc`。必填 `lc_name`，可带 `save_and_submit=true` 直接提交审批；审批与链上签名在订单模块内完成。
+
+    状态 `lc_opened`
+    - 卖方业务员提交装船与首次结算数据：`POST /api/v1/trades/{id}/ship-confirm`。必填 `vessel_name,bill_of_lading_no,loaded_wmt,loaded_dmt,load_port_moisture_bps,fe_content,price,load_port_quality_iron_bps,first_settlement_amount`；可选 `departure_date,note` 等。
+    - 买方按审批顺序调用 `POST /api/v1/trades/{id}/buyer-confirm-shipment`（可写 `note`）。链上放款完成后，状态自动进入 `first_settlement_done`。
+
+    状态 `first_settlement_done`
+    - 任一方发起第二次结算共识：`POST /api/v1/trades/{id}/consensus/start`，请求体至少包含 `round=2,buyer_pays,amount`，可加 `note`。
+    - 对方用 `POST /api/v1/trades/{id}/consensus/2/approve` 确认；若需退回，使用 `.../reject`，原发起方可 `PATCH /api/v1/trades/{id}/consensus/2` 修改后重提。通过后状态改为 `consensus2_reached`。
+
+    状态 `consensus2_reached`
+    - 付款方调用 `POST /api/v1/trades/{id}/create-payment`，必填 `round=2,order_name`，可传 `save_and_submit=true` 让提单直接进入审批流。
+    - 若本轮应由卖方回款且卖方是外部公司，买方在收到链上资金后用 `POST /api/v1/trades/{id}/consensus/2/record-receipt` 登记，必填 `tx_hash`。
+    - 支付提单执行完成或收款登记成功后，状态进入 `second_settlement_done`。
+
+    状态 `second_settlement_done`
+    - 再次发起第三次结算共识：`POST /api/v1/trades/{id}/consensus/start`，这次 `round=3`，并根据需要填写到港数据（示例：`arrival_date,unload_wmt,unload_iron_bps,unload_moisture_bps,final_iron_bps,final_dmt`）。审批流程与上一轮相同，成功后状态变为 `consensus3_reached`。
+
+    状态 `consensus3_reached`
+    - 付款方再次调用 `POST /api/v1/trades/{id}/create-payment`（`round=3`）；若需外部卖方回款，同样使用 `record-receipt`。
+    - 订单执行或收款登记结束后，贸易单达到最终状态 `third_settlement_done`。
+
+    随时可以用 `GET /api/v1/trades/{id}` 刷新最新状态与金额。
+
+    #### 情况二：外部卖方（无需LC）
+
+    - 外部卖方无法调用 `POST /api/v1/trades/{id}/open-lc`（接口会返回 403），流程不会进入 `lc_opened`。
+    - 从 `trade_created` 开始即可直接调用 `POST /api/v1/trades/{id}/consensus/start`，`round=2` 的请求会自动判定双方身份并立即记为已通过，状态马上变为 `consensus2_reached`。
+    - 后续与内部流程一致：付款方创建并执行 `round=2`、`round=3` 的支付提单；若共识要求外部卖方向买方付款，买方收到链上资金后用 `record-receipt` 填写 `tx_hash`。
+    - 当第三轮支付完成或收款登记完成时，贸易单同样结束在 `third_settlement_done`。
+
 servers:
   - url: http://nova-api.sgusd.io
 
