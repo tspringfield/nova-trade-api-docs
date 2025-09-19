@@ -34,7 +34,7 @@ info:
     #### 情况一：内部卖方（支持LC）
 
     状态 `trade_created`
-    - 买方业务员用 `POST /api/v1/trades` 创建贸易单。必填字段：`partner_id,name,product_type,nominated_wmt,nominated_float_bps,base_cargo_value,margin_bps,days_to_present`；常用可选项：`description,lc_issue_date,lc_expiry_date`。
+    - 买方业务员用 `POST /api/v1/trades` 创建贸易单。必填字段：`partner_id,name,product_type,nominated_wmt,base_cargo_value,margin_bps,days_to_present`；常用可选项：`description,lc_issue_date,lc_expiry_date`。
     - 需要链上信用证时，保留在此状态调用 `POST /api/v1/trades/{id}/open-lc`。必填 `lc_name`，可带 `save_and_submit=true` 直接提交审批；审批与链上签名在订单模块内完成。
 
     状态 `lc_opened`
@@ -1250,9 +1250,13 @@ paths:
           name: id
           schema: { type: integer, format: int64 }
         - in: query
-          name: q
+          name: trade_name
           schema: { type: string }
-          description: Fuzzy match on trade name or product type.
+          description: Fuzzy match on trade name.
+        - in: query
+          name: partner_name
+          schema: { type: string }
+          description: Fuzzy match on partner name (internal company name or saved label).
         - in: query
           name: state
           schema: { $ref: "#/components/schemas/TradeStateEnum" }
@@ -2442,7 +2446,16 @@ components:
         note: { type: string }
     RoleEnum:
       type: string
-      enum: [super_admin, company_admin, operator, l1_admin, l2_admin, finance, observer]
+      enum:
+        [
+          super_admin,
+          company_admin,
+          operator,
+          l1_admin,
+          l2_admin,
+          finance,
+          observer,
+        ]
     UserStatusEnum:
       type: string
       enum: [pending_activation, normal, disabled]
@@ -2921,7 +2934,6 @@ components:
         name: { type: string }
         product_type: { $ref: "#/components/schemas/TradeProductTypeEnum" }
         nominated_wmt: { type: string }
-        nominated_float_bps: { type: integer }
         base_cargo_value_minor:
           type: string
           description: USDC minor units (stringified integer).
@@ -2972,7 +2984,16 @@ components:
         updated_at: { type: string, format: date-time }
     CreateTradeInput:
       type: object
-      required: [partner_id, name, product_type, nominated_wmt, nominated_float_bps, base_cargo_value, margin_bps, days_to_present]
+      required:
+        [
+          partner_id,
+          name,
+          product_type,
+          nominated_wmt,
+          base_cargo_value,
+          margin_bps,
+          days_to_present,
+        ]
       properties:
         partner_id:
           type: integer
@@ -2995,11 +3016,6 @@ components:
           description: |
             Planned wet metric tonnage; keep as string to preserve decimals.
             中文：计划装船量（湿吨），用字符串保持精度。
-        nominated_float_bps:
-          type: integer
-          description: |
-            Basis points applied to the nominated WMT (may be negative).
-            中文：对提名数量的浮动基点，可为负数。
         base_cargo_value:
           type: string
           description: |
@@ -3042,7 +3058,6 @@ components:
           allOf: [{ $ref: "#/components/schemas/TradeProductTypeEnum" }]
           nullable: true
         nominated_wmt: { type: string, nullable: true }
-        nominated_float_bps: { type: integer, nullable: true }
         base_cargo_value: { type: string, nullable: true }
         margin_bps: { type: integer, nullable: true }
         lc_issue_date: { type: string, format: date-time, nullable: true }
