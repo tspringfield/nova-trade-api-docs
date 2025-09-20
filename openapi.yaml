@@ -2997,6 +2997,25 @@ components:
           description: |
             Related LC order ID (null when LC not created).
             中文：关联的LC订单ID（未开LC则为空）。
+        lc_status:
+          $ref: "#/components/schemas/LCStatusEnum"
+          description: |
+            Current on-chain LC status when an LC order is linked.
+            中文：关联LC订单时的链上信用证状态。
+        lc_funding_tx_hash: { type: string }
+        lc_funding_tx_url: { type: string }
+        lc_release_tx_hash: { type: string }
+        lc_release_tx_url: { type: string }
+        lc_offchain_id:
+          type: string
+          description: |
+            Bytes32 identifier (0x-prefixed) derived from the LC order for on-chain tracking.
+            中文：LC订单生成的0x前缀链上标识。
+        lc_escrow_address:
+          type: string
+          description: |
+            On-chain escrow contract address for the LC.
+            中文：LC对应的链上托管合约地址。
         ship_vessel_name: { type: string }
         ship_departure_date: { type: string, format: date-time, nullable: true }
         bill_of_lading_no: { type: string }
