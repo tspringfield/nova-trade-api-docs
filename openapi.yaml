@@ -2939,6 +2939,11 @@ components:
         buyer_company_id: { type: integer, format: int64 }
         seller_company_id: { type: integer, format: int64, nullable: true }
         partner_id: { type: integer, format: int64 }
+        partner_name:
+          type: string
+          description: |
+            Partner display name resolved from the partner relation.
+            中文：合作方名称（来自合作方关系）。
         name: { type: string }
         product_type: { $ref: "#/components/schemas/TradeProductTypeEnum" }
         nominated_wmt: { type: string }
@@ -2961,6 +2966,30 @@ components:
           description: |
             Workflow state (`trade_created`, `lc_opened`, ...).
             中文：贸易流程状态（如 `trade_created`、`lc_opened` 等）。
+        consensus_round2_initiated:
+          type: boolean
+          description: |
+            Indicates whether a round 2 consensus proposal currently exists.
+            中文：回合2是否已有共识提案。
+        consensus_round2_initiator_company_id:
+          type: integer
+          format: int64
+          nullable: true
+          description: |
+            Company ID of the round 2 consensus initiator when applicable.
+            中文：回合2共识提案的发起公司ID（若无则为空）。
+        consensus_round3_initiated:
+          type: boolean
+          description: |
+            Indicates whether a round 3 consensus proposal currently exists.
+            中文：回合3是否已有共识提案。
+        consensus_round3_initiator_company_id:
+          type: integer
+          format: int64
+          nullable: true
+          description: |
+            Company ID of the round 3 consensus initiator when applicable.
+            中文：回合3共识提案的发起公司ID（若无则为空）。
         lc_order_id:
           type: integer
           format: int64
