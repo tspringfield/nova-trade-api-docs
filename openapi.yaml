@@ -2474,6 +2474,10 @@ components:
         - payment_received
         - payment_completed
         - order_closed
+    LCStatusEnum:
+      type: string
+      enum: [active, release_proposed, buyer_approved, released, settled]
+      description: "LC state as emitted by the escrow smart contract. The indexer advances these states only after the configured block confirmations."
     TradeProductTypeEnum:
       type: string
       enum: [pilbara_blend_fines, newman_fines, carajas_fines]
@@ -2865,6 +2869,10 @@ components:
         lc_funding_tx_url: { type: string }
         lc_release_tx_hash: { type: string }
         lc_release_tx_url: { type: string }
+        lc_status:
+          $ref: "#/components/schemas/LCStatusEnum"
+          description: |-
+            Current on-chain LC status. Populated by the event indexer after block confirmations.
         attachments:
           type: array
           items: { type: string }
@@ -3456,6 +3464,9 @@ components:
         status_label:
           type: string
           example: "待卖方确认发货"
+        escrow_status:
+          $ref: "#/components/schemas/LCStatusEnum"
+          description: "On-chain LC state; updated once the indexer observes the corresponding event (with confirmation delay)."
     Order:
       type: object
       properties:
@@ -3487,6 +3498,9 @@ components:
         order_id: { type: integer, format: int64 }
         address: { type: string }
         amount_minor: { type: integer, format: int64 }
+        status:
+          $ref: "#/components/schemas/LCStatusEnum"
+          description: "On-chain LC state; absent when activation has not been observed yet."
         tx_hash: { type: string }
         seller_confirmed_at: { type: string, format: date-time, nullable: true }
         seller_admin_id: { type: integer, format: int64, nullable: true }
