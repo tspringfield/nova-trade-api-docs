@@ -1532,15 +1532,15 @@ paths:
   /api/v1/trades/{id}/buyer-confirm-shipment:
     post:
       tags: [Trades]
-      summary: Buyer confirms shipment (advances LC release)
+      summary: Buyer L2 admin confirms shipment (advances LC release)
       description: |
-        Buyer operator approves the seller shipment data so finance/platform can release escrow funds.
+        Buyer-side L2 admin reviews the seller shipment data and confirms release so finance/platform can execute the escrow payout.
         Call after reviewing the seller submission from `/trade/{id}` detail.
         Result: release workflow moves forward; finance/platform will trigger the on-chain payout.
         Once the release transaction succeeds, the trade state transitions to `first_settlement_done`.
 
         中文说明：
-        - 买方业务员审核卖方装船信息后点击确认，表示同意放款。
+        - 买方二级管理员审核卖方装船信息后点击确认，表示同意放款。
         - 在前端查看贸易单详情后调用即可，必要时附备注。
         - 成功后进入放款流程，财务/平台会在链上放款。
         - 放款交易成功后，贸易单状态会变为 `first_settlement_done`。
