@@ -2976,30 +2976,17 @@ components:
           description: |
             Workflow state (`trade_created`, `lc_opened`, ...).
             中文：贸易流程状态（如 `trade_created`、`lc_opened` 等）。
-        consensus_round2_initiated:
-          type: boolean
-          description: |
-            Indicates whether a round 2 consensus proposal currently exists.
-            中文：回合2是否已有共识提案。
-        consensus_round2_initiator_company_id:
-          type: integer
-          format: int64
+        consensus:
+          type: object
           nullable: true
           description: |
-            Company ID of the round 2 consensus initiator when applicable.
-            中文：回合2共识提案的发起公司ID（若无则为空）。
-        consensus_round3_initiated:
-          type: boolean
-          description: |
-            Indicates whether a round 3 consensus proposal currently exists.
-            中文：回合3是否已有共识提案。
-        consensus_round3_initiator_company_id:
-          type: integer
-          format: int64
-          nullable: true
-          description: |
-            Company ID of the round 3 consensus initiator when applicable.
-            中文：回合3共识提案的发起公司ID（若无则为空）。
+            Latest consensus proposals for reconciliation rounds 2 and 3.
+            中文：回合2与回合3的最新结算共识详情。
+          properties:
+            round2:
+              allOf: [{ $ref: "#/components/schemas/TradeConsensusDTO" }]
+            round3:
+              allOf: [{ $ref: "#/components/schemas/TradeConsensusDTO" }]
         lc_order_id:
           type: integer
           format: int64
@@ -3337,6 +3324,16 @@ components:
         reject_note: { type: string }
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
+    TradeConsensusDTO:
+      allOf:
+        - $ref: "#/components/schemas/TradeConsensus"
+        - type: object
+          properties:
+            amount:
+              type: string
+              description: |
+                Human readable consensus amount with thousands separators.
+                中文：带千位分隔符的人类可读共识金额。
     TradeReceipt:
       type: object
       properties:
