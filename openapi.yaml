@@ -1240,13 +1240,14 @@ paths:
       summary: Search trades visible to the caller
       description: |
         Filters trades where the caller's company is the buyer or the internal seller.
-        Use `state` to narrow by workflow stage. `product_type` filters by the commodity preset and
+        Use the `state` filter (repeatable or comma-separated) to narrow by workflow stage.
+        `product_type` filters by the commodity preset and
         `lc_status` narrows trades with an escrow in that lifecycle state. Pagination headers mirror
         other list endpoints.
 
         中文说明：
         - 只返回调用方公司是买方或内部卖方的贸易单。
-        - 可用 `state` 查询不同阶段，可用 `product_type` 限定品类，可用 `lc_status` 查看信用证状态，分页返回格式与其他列表一致。
+        - 可重复或用逗号分隔 `state` 参数以查询多个阶段；`product_type` 限定品类，`lc_status` 查看信用证状态，分页返回格式与其他列表一致。
       parameters:
         - in: query
           name: id
@@ -1261,7 +1262,12 @@ paths:
           description: Fuzzy match on partner name (internal company name or saved label).
         - in: query
           name: state
-          schema: { $ref: "#/components/schemas/TradeStateEnum" }
+          style: form
+          explode: true
+          schema:
+            type: array
+            items: { $ref: "#/components/schemas/TradeStateEnum" }
+          description: Filter trades by one or more workflow states (repeat `state` or use commas).
         - in: query
           name: product_type
           schema: { $ref: "#/components/schemas/TradeProductTypeEnum" }
