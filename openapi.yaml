@@ -1550,13 +1550,16 @@ paths:
       tags: [Trades]
       summary: Buyer confirms shipment (advances LC release)
       description: |
-        Buyer operator approves the seller shipment data so finance/platform can release escrow funds.
-        Call after reviewing the seller submission from `/trade/{id}` detail.
-        Result: release workflow moves forward; finance/platform will trigger the on-chain payout.
-        Once the release transaction succeeds, the trade state transitions to `first_settlement_done`.
+        Buyer operators or company admins review the seller shipment data and record the buyer decision.
+        Pre-approval can be completed by an operator or company admin; final on-chain approval can be
+        executed by a company admin or L2 admin once pre-approval exists. Call after reviewing the seller
+        submission from `/trade/{id}` detail. Result: release workflow moves forward and finance/platform
+        will trigger the on-chain payout. Once the release transaction succeeds, the trade state transitions
+        to `first_settlement_done`.
 
         中文说明：
-        - 买方业务员审核卖方装船信息后点击确认，表示同意放款。
+        - 买方业务员或公司管理员可先完成预审批（operator/company_admin）。
+        - 预审批之后，公司管理员或二级管理员会在后台与链上合约交互并完成最终确认。
         - 在前端查看贸易单详情后调用即可，必要时附备注。
         - 成功后进入放款流程，财务/平台会在链上放款。
         - 放款交易成功后，贸易单状态会变为 `first_settlement_done`。
@@ -2308,7 +2311,7 @@ paths:
   /api/v1/lc/releases/{id}/buyer-confirm:
     post:
       tags: ["LC Release"]
-      summary: Buyer confirm received & request release (buyer-company Operator)
+      summary: Buyer confirm received & request release (buyer-company Operator/Admin)
       parameters:
         - $ref: "#/components/parameters/PathId"
       requestBody:
@@ -2860,6 +2863,9 @@ components:
         product_type: { $ref: "#/components/schemas/TradeProductTypeEnum" }
         partner_id: { type: integer, format: int64 }
         partner_wallet: { type: string }
+        partner_name:
+          type: string
+          description: "Display name resolved from partner/company record."
         amount_minor: { type: integer, format: int64 }
         amount:
           type: string
@@ -3540,6 +3546,9 @@ components:
         product_type: { $ref: "#/components/schemas/TradeProductTypeEnum" }
         partner_id: { type: integer, format: int64 }
         partner_wallet: { type: string }
+        partner_name:
+          type: string
+          description: "Display name resolved from partner/company record."
         amount_minor: { type: integer, format: int64 }
         asset: { type: string }
         description: { type: string }
