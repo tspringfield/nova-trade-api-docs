@@ -1242,7 +1242,8 @@ paths:
         Filters trades where the caller's company is the buyer or the internal seller.
         Use the `state` filter (repeatable or comma-separated) to narrow by workflow stage.
         `product_type` filters by the commodity preset and
-        `lc_status` narrows trades with an escrow in that lifecycle state. Pagination headers mirror
+        `lc_status` narrows trades with an escrow in that lifecycle state, and `lc_substatus` refines
+        `release_proposed` escrows by whether the operator or L2 approval is pending. Pagination headers mirror
         other list endpoints.
 
         中文说明：
@@ -1276,6 +1277,12 @@ paths:
           name: lc_status
           schema: { $ref: "#/components/schemas/LCStatusEnum" }
           description: Filters trades whose LC escrow currently has this status.
+        - in: query
+          name: lc_substatus
+          schema: { $ref: "#/components/schemas/LCSubstatusEnum" }
+          description: |
+            Filters trades where `lc_status=release_proposed` and the derived `lc_substatus` matches.
+            中文：仅返回 `lc_status=release_proposed` 且派生的 `lc_substatus` 等于此值的贸易单。
         - $ref: "#/components/parameters/Page"
         - $ref: "#/components/parameters/PageSize"
       responses:
@@ -2497,6 +2504,12 @@ components:
       type: string
       enum: [active, release_proposed, buyer_approved, released, settled]
       description: "LC state as emitted by the escrow smart contract. The indexer advances these states only after the configured block confirmations."
+    LCSubstatusEnum:
+      type: string
+      enum: [pending_operator_approval, pending_l2_approval]
+      description: |
+        LC release workflow step when `lc_status=release_proposed`.
+        中文：`lc_status=release_proposed` 时的LC释放流程节点。
     TradeProductTypeEnum:
       type: string
       enum: [pilbara_blend_fines, newman_fines, carajas_fines]
@@ -2972,6 +2985,9 @@ components:
         base_cargo_value_minor:
           type: string
           description: USDC minor units (stringified integer).
+        base_cargo_value:
+          type: string
+          description: Human readable base cargo value with thousands separators.
         margin_bps: { type: integer }
         lc_amount_minor:
           type: string
@@ -3011,6 +3027,11 @@ components:
           description: |
             Current on-chain LC status when an LC order is linked.
             中文：关联LC订单时的链上信用证状态。
+        lc_substatus:
+          allOf: [{ $ref: "#/components/schemas/LCSubstatusEnum" }]
+          description: |
+            Additional LC release step detail when `lc_status=release_proposed`.
+            中文：当 `lc_status=release_proposed` 时的释放子状态。
         lc_funding_tx_hash: { type: string }
         lc_funding_tx_url: { type: string }
         lc_release_tx_hash: { type: string }
@@ -3037,6 +3058,9 @@ components:
         first_settlement_amount_minor:
           type: string
           description: First settlement amount in USDC minor units.
+        first_settlement_amount:
+          type: string
+          description: Human readable first settlement amount with thousands separators.
         ship_note: { type: string }
         arrival_date: { type: string, format: date-time, nullable: true }
         unload_wmt: { type: string }
