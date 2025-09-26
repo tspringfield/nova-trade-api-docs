@@ -2334,6 +2334,39 @@ paths:
         "403": { $ref: "#/components/responses/Forbidden" }
         "401": { $ref: "#/components/responses/Unauthorized" }
 
+  /api/v1/transactions/receipts:
+    get:
+      summary: 收款信息列表 (Incoming receipts)
+      description: Returns ledger transactions where the receiver address matches the caller's company address.
+      tags: [Transactions]
+      parameters:
+        - in: query
+          name: page
+          schema: { type: integer, minimum: 1 }
+          required: false
+          description: Page number (default 1).
+        - in: query
+          name: page_size
+          schema: { type: integer, minimum: 1, maximum: 100 }
+          required: false
+          description: Page size (default 20, max 100).
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  transactions:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/LedgerTransaction"
+        '400':
+          description: Company context missing or address not configured
+        '500':
+          description: Internal server error
+
   /api/v1/transactions/{id}:
     get:
       tags: [Transactions]
@@ -3638,3 +3671,56 @@ components:
         completed:
           type: boolean
           description: true when the transaction is completed and the order has been auto-advanced (if applicable).
+    LedgerTransaction:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        type:
+          type: string
+          description: Ledger transaction type (cobo_transfer | lc_release).
+        cobo_tx_id:
+          type: string
+          nullable: true
+        tx_hash:
+          type: string
+        chain:
+          type: string
+        block_number:
+          type: integer
+          format: int64
+        included_at:
+          type: string
+          format: date-time
+          nullable: true
+        sender_address:
+          type: string
+        receiver_address:
+          type: string
+        token_address:
+          type: string
+        token_symbol:
+          type: string
+        token_name:
+          type: string
+        token_decimals:
+          type: integer
+          format: int32
+        amount_minor:
+          type: string
+          description: Amount in minor units (as decimal string).
+        amount:
+          type: string
+          description: Human readable amount rendered with token decimals.
+        status:
+          type: string
+          description: Latest known Cobo status.
+        status_checked_at:
+          type: string
+          format: date-time
+          nullable: true
+        order_id:
+          type: integer
+          format: int64
+          nullable: true
