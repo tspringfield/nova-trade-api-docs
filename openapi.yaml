@@ -2350,6 +2350,26 @@ paths:
           schema: { type: integer, minimum: 1, maximum: 100 }
           required: false
           description: Page size (default 20, max 100).
+        - in: query
+          name: trade_id
+          schema: { type: integer, format: int64 }
+          required: false
+          description: Filter receipts linked to a specific trade.
+        - in: query
+          name: partner_name
+          schema: { type: string }
+          required: false
+          description: Fuzzy match on partner name.
+        - in: query
+          name: received_from
+          schema: { type: string, format: date-time }
+          required: false
+          description: Filter receipts with status timestamp on or after this time (RFC3339 or YYYY-MM-DD).
+        - in: query
+          name: received_to
+          schema: { type: string, format: date-time }
+          required: false
+          description: Filter receipts with status timestamp on or before this time (RFC3339 or YYYY-MM-DD).
       responses:
         '200':
           description: OK
@@ -3723,4 +3743,11 @@ components:
         order_id:
           type: integer
           format: int64
+          nullable: true
+        trade_id:
+          type: integer
+          format: int64
+          nullable: true
+        partner_name:
+          type: string
           nullable: true
