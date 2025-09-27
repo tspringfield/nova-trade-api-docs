@@ -2970,7 +2970,8 @@ components:
             Current on-chain LC status. Populated by the event indexer after block confirmations.
         attachments:
           type: array
-          items: { type: string }
+          description: Attachments bound to the order (only `ready` records).
+          items: { $ref: "#/components/schemas/AttachmentDTO" }
         created_by: { type: integer, format: int64 }
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
