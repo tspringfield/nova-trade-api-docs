@@ -1241,14 +1241,15 @@ paths:
       description: |
         Filters trades where the caller's company is the buyer or the internal seller.
         Use the `state` filter (repeatable or comma-separated) to narrow by workflow stage.
-        `product_type` filters by the commodity preset and
-        `lc_status` narrows trades with an escrow in that lifecycle state, and `lc_substatus` refines
+        `product_type` filters by the commodity preset,
+        `lc_off_chain_status` reflects the latest off-chain approval/release progress,
+        `lc_on_chain_status` narrows trades with an escrow in that lifecycle state, and `lc_substatus` refines
         `release_proposed` escrows by whether the operator or L2 approval is pending. Pagination headers mirror
         other list endpoints.
 
         中文说明：
         - 只返回调用方公司是买方或内部卖方的贸易单。
-        - 可重复或用逗号分隔 `state` 参数以查询多个阶段；`product_type` 限定品类，`lc_status` 查看信用证状态，分页返回格式与其他列表一致。
+        - 可重复或用逗号分隔 `state` 参数以查询多个阶段；`product_type` 限定品类；`lc_off_chain_status` 查看线下审批 / 放款节点；`lc_on_chain_status` 查看信用证链上状态，分页返回格式与其他列表一致。
       parameters:
         - in: query
           name: id
@@ -1274,15 +1275,25 @@ paths:
           schema: { $ref: "#/components/schemas/TradeProductTypeEnum" }
           description: Exact match on the configured trade product type.
         - in: query
-          name: lc_status
-          schema: { $ref: "#/components/schemas/LCStatusEnum" }
+          name: lc_off_chain_status
+          style: form
+          explode: true
+          schema:
+            type: array
+            items: { $ref: "#/components/schemas/LCOffChainStatusEnum" }
+          description: |
+            Filters trades by the derived off-chain workflow status (repeat `lc_off_chain_status` or use commas).
+            中文：按线下审批 / 放款流程节点筛选贸易单，可重复或逗号分隔 `lc_off_chain_status` 参数。
+        - in: query
+          name: lc_on_chain_status
+          schema: { $ref: "#/components/schemas/LCOnChainStatusEnum" }
           description: Filters trades whose LC escrow currently has this status.
         - in: query
           name: lc_substatus
           schema: { $ref: "#/components/schemas/LCSubstatusEnum" }
           description: |
-            Filters trades where `lc_status=release_proposed` and the derived `lc_substatus` matches.
-            中文：仅返回 `lc_status=release_proposed` 且派生的 `lc_substatus` 等于此值的贸易单。
+            Filters trades where `lc_on_chain_status=release_proposed` and the derived `lc_substatus` matches.
+            中文：仅返回 `lc_on_chain_status=release_proposed` 且派生的 `lc_substatus` 等于此值的贸易单。
         - $ref: "#/components/parameters/Page"
         - $ref: "#/components/parameters/PageSize"
       responses:
@@ -2560,16 +2571,30 @@ components:
         - payment_received
         - payment_completed
         - order_closed
-    LCStatusEnum:
+    LCOnChainStatusEnum:
       type: string
       enum: [active, release_proposed, buyer_approved, released, settled]
       description: "LC state as emitted by the escrow smart contract. The indexer advances these states only after the configured block confirmations."
+    LCOffChainStatusEnum:
+      type: string
+      enum:
+        - open_buyer_operator_initiated
+        - open_buyer_l2_approved
+        - open_buyer_l1_approved
+        - open_buyer_finance_approved
+        - release_seller_operator_initiated
+        - release_buyer_operator_approved
+        - release_buyer_l2_approved
+        - release_platform_approved
+      description: |
+        Derived LC workflow status handled off-chain (approvals, finance execution, release confirmations).
+        中文：信用证线下流程节点（审批、财务放款、放款确认）。
     LCSubstatusEnum:
       type: string
       enum: [pending_operator_approval, pending_l2_approval]
       description: |
-        LC release workflow step when `lc_status=release_proposed`.
-        中文：`lc_status=release_proposed` 时的LC释放流程节点。
+        LC release workflow step when `lc_on_chain_status=release_proposed`.
+        中文：`lc_on_chain_status=release_proposed` 时的LC释放流程节点。
     TradeProductTypeEnum:
       type: string
       enum: [pilbara_blend_fines, newman_fines, carajas_fines]
@@ -2629,6 +2654,9 @@ components:
           type: array
           items: { $ref: "#/components/schemas/EnumItem" }
         lc_release_status:
+          type: array
+          items: { $ref: "#/components/schemas/EnumItem" }
+        lc_off_chain_status:
           type: array
           items: { $ref: "#/components/schemas/EnumItem" }
 
@@ -2964,8 +2992,8 @@ components:
         lc_funding_tx_url: { type: string }
         lc_release_tx_hash: { type: string }
         lc_release_tx_url: { type: string }
-        lc_status:
-          $ref: "#/components/schemas/LCStatusEnum"
+        lc_on_chain_status:
+          $ref: "#/components/schemas/LCOnChainStatusEnum"
           description: |-
             Current on-chain LC status. Populated by the event indexer after block confirmations.
         attachments:
@@ -3102,16 +3130,21 @@ components:
           description: |
             Related LC order ID (null when LC not created).
             中文：关联的LC订单ID（未开LC则为空）。
-        lc_status:
-          $ref: "#/components/schemas/LCStatusEnum"
+        lc_on_chain_status:
+          $ref: "#/components/schemas/LCOnChainStatusEnum"
           description: |
             Current on-chain LC status when an LC order is linked.
             中文：关联LC订单时的链上信用证状态。
+        lc_off_chain_status:
+          allOf: [{ $ref: "#/components/schemas/LCOffChainStatusEnum" }]
+          description: |
+            Derived LC workflow step handled off-chain (approvals, finance execution, release confirmations).
+            中文：LC线下流程节点（审批、财务放款、放款确认）。
         lc_substatus:
           allOf: [{ $ref: "#/components/schemas/LCSubstatusEnum" }]
           description: |
-            Additional LC release step detail when `lc_status=release_proposed`.
-            中文：当 `lc_status=release_proposed` 时的释放子状态。
+            Additional LC release step detail when `lc_on_chain_status=release_proposed`.
+            中文：当 `lc_on_chain_status=release_proposed` 时的释放子状态。
         lc_funding_tx_hash: { type: string }
         lc_funding_tx_url: { type: string }
         lc_release_tx_hash: { type: string }
@@ -3687,7 +3720,7 @@ components:
           type: string
           example: "待卖方确认发货"
         escrow_status:
-          $ref: "#/components/schemas/LCStatusEnum"
+          $ref: "#/components/schemas/LCOnChainStatusEnum"
           description: "On-chain LC state; updated once the indexer observes the corresponding event (with confirmation delay)."
     Order:
       type: object
@@ -3724,7 +3757,7 @@ components:
         address: { type: string }
         amount_minor: { type: integer, format: int64 }
         status:
-          $ref: "#/components/schemas/LCStatusEnum"
+          $ref: "#/components/schemas/LCOnChainStatusEnum"
           description: "On-chain LC state; absent when activation has not been observed yet."
         tx_hash: { type: string }
         seller_confirmed_at: { type: string, format: date-time, nullable: true }
