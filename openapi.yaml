@@ -1223,11 +1223,13 @@ paths:
         `lc_off_chain_status` reflects the latest off-chain approval/release progress,
         `lc_on_chain_status` narrows trades with an escrow in that lifecycle state,
         `lc_order_id` matches trades linked to a specific LC order,
+        `only_as_buyer=true` limits the results to trades where the caller is the buyer,
         and `third_settlemend_done_at_from` / `_to` limit the completion timestamp (accepts RFC3339 or `YYYY-MM-DD`).
         Pagination headers mirror other list endpoints.
 
         中文说明：
         - 只返回调用方公司是买方或内部卖方的贸易单。
+        - 如果需要仅查看买方视角的贸易单，可传 `only_as_buyer=true`。
         - 可重复或用逗号分隔 `state` 参数以查询多个阶段；`product_type` 限定品类；`lc_off_chain_status` 查看线下审批 / 放款节点；`lc_on_chain_status` 查看信用证链上状态；`lc_order_id` 精确匹配关联的 LC 订单；`third_settlemend_done_at_from`、`third_settlemend_done_at_to` 过滤第三次结算完成时间（支持 RFC3339 或 `YYYY-MM-DD`），分页返回格式与其他列表一致。
       parameters:
         - in: query
@@ -1245,6 +1247,10 @@ paths:
           name: lc_order_id
           schema: { type: integer, format: int64 }
           description: Filters trades linked to the specified LC order ID.
+        - in: query
+          name: only_as_buyer
+          schema: { type: boolean }
+          description: When true, limits trades to those where the caller's company is the buyer.
         - in: query
           name: state
           style: form
@@ -3109,6 +3115,20 @@ components:
           description: |
             Derived LC workflow step handled off-chain (approvals, finance execution, release confirmations).
             中文：LC线下流程节点（审批、财务放款、放款确认）。
+        lc_open_buyer_finance_approved_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: |
+            Timestamp when LC opening is done.
+            中文：LC开立时刻。
+        lc_release_platform_approved_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: |
+            Timestamp when platform confirmed the LC release to the seller (first settlement).
+            中文：平台确认LC放款给卖方的时间（首次结算）。
         third_settlement_done_at:
           type: string
           format: date-time
