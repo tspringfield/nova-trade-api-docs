@@ -35,7 +35,7 @@ info:
 
     状态 `trade_created`
     - 买方业务员用 `POST /api/v1/trades` 创建贸易单。必填字段：`partner_id,name,product_type,nominated_wmt,base_cargo_value,margin_bps,days_to_present`；常用可选项：`description,lc_issue_date,lc_expiry_date`。
-    - 需要链上信用证时，保留在此状态调用 `POST /api/v1/trades/{id}/open-lc`。必填 `lc_name`，可带 `save_and_submit=true` 直接提交审批；审批与链上签名在订单模块内完成。
+    - 需要链上信用证时，保留在此状态调用 `POST /api/v1/trades/{id}/open-lc`。必填 `lc_name`；审批与链上签名在订单模块内完成。
 
     状态 `lc_opened`
     - 卖方业务员提交装船与首次结算数据：`POST /api/v1/trades/{id}/ship-confirm`。必填 `vessel_name,bill_of_lading_no,loaded_wmt,loaded_dmt,load_port_moisture_bps,fe_content,price,load_port_quality_iron_bps,first_settlement_amount`；可选 `departure_date,note` 等。
@@ -46,7 +46,7 @@ info:
     - 对方用 `POST /api/v1/trades/{id}/consensus/2/approve` 确认；若需退回，使用 `.../reject`，原发起方可 `PATCH /api/v1/trades/{id}/consensus/2` 修改后重提。通过后状态改为 `consensus2_reached`。
 
     状态 `consensus2_reached`
-    - 付款方调用 `POST /api/v1/trades/{id}/create-payment`，必填 `round=2,order_name`，可传 `save_and_submit=true` 让提单直接进入审批流。
+    - 付款方调用 `POST /api/v1/trades/{id}/create-payment`，必填 `round=2,order_name`，提单会自动进入审批流。
     - 若本轮应由卖方回款且卖方是外部公司，买方在收到链上资金后用 `POST /api/v1/trades/{id}/consensus/2/record-receipt` 登记，必填 `tx_hash`。
     - 支付提单执行完成或收款登记成功后，状态进入 `second_settlement_done`。
 
@@ -141,7 +141,7 @@ paths:
                       - value: operator
                         label: Operator
                         label_zh: 业务员
-                        description: "Creates & submits Payment/LC orders and Collection orders; LC release confirmations are Operator-driven."
+                        description: "Creates & submits Payment/LC orders; LC release confirmations are Operator-driven."
                         tag_color: "#1890ff"
                       - value: l2_admin
                         label: Level-2 Admin
@@ -156,7 +156,7 @@ paths:
                       - value: finance
                         label: Finance
                         label_zh: 财务
-                        description: "Executes outgoing transfers after approval; monitors wallets and Collections."
+                        description: "Executes outgoing transfers after approval; monitors wallets and receipts."
                         tag_color: "#722ed1"
                       - value: observer
                         label: Observer
@@ -190,21 +190,11 @@ paths:
                         label_zh: 链上信用证
                         description: "Funding to tri-party escrow; later released to seller wallet after tri-party confirmations."
                         tag_color: "#722ed1"
-                      - value: collection
-                        label: Collection (Receipt)
-                        label_zh: 收款
-                        description: "Request payment from counterparty; finance/company admin marks received with a TX hash."
-                        tag_color: "#389e0d"
                     order_status:
-                      - value: pending_submission
-                        label: Pending Submission
-                        label_zh: 待提交
-                        description: "Saved; requires explicit 'submit' to enter approval / collection flow."
-                        tag_color: "#faad14"
                       - value: pending_l2_approval
                         label: Pending L2 Approval
                         label_zh: 待二级审批
-                        description: "Awaiting Level-2 Admin review (Payment/LC)."
+                        description: "Awaiting Level-2 Admin review (Payment/LC). Newly created orders enter this state immediately."
                         tag_color: "#13c2c2"
                       - value: pending_l1_approval
                         label: Pending L1 Approval
@@ -216,25 +206,10 @@ paths:
                         label_zh: 待付款
                         description: "Finance can transfer funds. LC: fund escrow. Payment: pay seller wallet."
                         tag_color: "#fa8c16"
-                      - value: pending_release
-                        label: LC Awaiting Release
-                        label_zh: 待放款流程
-                        description: "LC only: escrow funded, waiting for seller & buyer Operator confirmations and platform confirmation."
-                        tag_color: "#722ed1"
-                      - value: submitted
-                        label: Submitted (Collection)
-                        label_zh: 已提交
-                        description: "Collection only: 已提交收款给对方，待对方付款。"
-                        tag_color: "#1890ff"
-                      - value: payment_received
-                        label: Payment Received (Collection)
-                        label_zh: 付款完成
-                        description: "Collection only: Counterparty payment received; TX recorded for auditability."
-                        tag_color: "#52c41a"
                       - value: payment_completed
                         label: Payment Completed
                         label_zh: 付款完成
-                        description: "Final success state for Payment and LC (after release)."
+                        description: "Funds sent from buyer; LC release progress tracked via lc_off_chain_status."
                         tag_color: "#52c41a"
                       - value: order_closed
                         label: Order Closed
@@ -895,6 +870,9 @@ paths:
           name: id
           schema: { type: integer, format: int64 }
         - in: query
+          name: trade_id
+          schema: { type: integer, format: int64 }
+        - in: query
           name: type
           schema: { $ref: "#/components/schemas/OrderTypeEnum" }
         - in: query
@@ -913,6 +891,10 @@ paths:
           name: q
           schema: { type: string }
           description: Fuzzy match on order name.
+        - in: query
+          name: trade_name
+          schema: { type: string }
+          description: Fuzzy match on associated trade name.
         - in: query
           name: partner_q
           schema: { type: string }
@@ -1163,11 +1145,11 @@ paths:
       summary: LC funding step 2 — open LC after approval
       description: |
         Calls the LC Factory to open the escrow after the allowance approval transaction is completed.
-        Fails if step 1 has not finished on-chain. Returns the updated order (status -> `pending_release`).
+        Fails if step 1 has not finished on-chain. Returns the updated order (status -> `payment_completed`; release progress tracked via `lc_off_chain_status`).
 
         中文说明：
         - LC开立第二步，在授权交易确认后调用工厂合约创建托管账户。
-        - 如果第一步交易还未上链成功会报错。成功后订单状态进入 `pending_release`，等待后续第一次结算（LC放款）流程。
+        - 如果第一步交易还未上链成功会报错。成功后订单状态进入 `payment_completed`，后续放款流程通过 `lc_off_chain_status` 跟踪。
       parameters:
         - $ref: "#/components/parameters/PathId"
       requestBody:
@@ -1177,7 +1159,7 @@ paths:
             schema: { $ref: "#/components/schemas/ExecuteInput" }
       responses:
         "200":
-          description: Updated order (escrow opened; pending release)
+          description: Updated order (escrow opened; release tracked via lc_off_chain_status)
           content:
             application/json:
               schema: { $ref: "#/components/schemas/OrderDTO" }
@@ -1188,7 +1170,7 @@ paths:
   /api/v1/orders/{id}/mark-received:
     post:
       tags: [Orders]
-      summary: Mark collection payment received (finance/company_admin)
+      summary: Record payment receipt (finance/company_admin)
       parameters:
         - $ref: "#/components/parameters/PathId"
       requestBody:
@@ -1198,7 +1180,7 @@ paths:
             schema: { $ref: "#/components/schemas/MarkReceivedInput" }
       responses:
         "200":
-          description: Updated order (status -> payment_received)
+          description: Updated order with recorded receipt details
           content:
             application/json:
               schema: { $ref: "#/components/schemas/OrderDTO" }
@@ -1243,8 +1225,7 @@ paths:
         Use the `state` filter (repeatable or comma-separated) to narrow by workflow stage.
         `product_type` filters by the commodity preset,
         `lc_off_chain_status` reflects the latest off-chain approval/release progress,
-        `lc_on_chain_status` narrows trades with an escrow in that lifecycle state, and `lc_substatus` refines
-        `release_proposed` escrows by whether the operator or L2 approval is pending. Pagination headers mirror
+        and `lc_on_chain_status` narrows trades with an escrow in that lifecycle state. Pagination headers mirror
         other list endpoints.
 
         中文说明：
@@ -1282,18 +1263,12 @@ paths:
             type: array
             items: { $ref: "#/components/schemas/LCOffChainStatusEnum" }
           description: |
-            Filters trades by the derived off-chain workflow status (repeat `lc_off_chain_status` or use commas).
+            Filters trades by the recorded off-chain workflow status (repeat `lc_off_chain_status` or use commas).
             中文：按线下审批 / 放款流程节点筛选贸易单，可重复或逗号分隔 `lc_off_chain_status` 参数。
         - in: query
           name: lc_on_chain_status
           schema: { $ref: "#/components/schemas/LCOnChainStatusEnum" }
           description: Filters trades whose LC escrow currently has this status.
-        - in: query
-          name: lc_substatus
-          schema: { $ref: "#/components/schemas/LCSubstatusEnum" }
-          description: |
-            Filters trades where `lc_on_chain_status=release_proposed` and the derived `lc_substatus` matches.
-            中文：仅返回 `lc_on_chain_status=release_proposed` 且派生的 `lc_substatus` 等于此值的贸易单。
         - $ref: "#/components/parameters/Page"
         - $ref: "#/components/parameters/PageSize"
       responses:
@@ -1505,13 +1480,13 @@ paths:
         Creates an `onchain_lc` order linked to the trade so finance can fund the escrow.
         Prerequisites:
         - Trade must be in `trade_created` and the seller must be an internal company.
-        - Buyer operator provides `lc_name`, optional `save_and_submit=true` to send for approvals immediately.
+        - Buyer operator provides `lc_name`; the new order is submitted immediately for approvals.
         Result: LC order appears in the buyer workflow; follow `/api/v1/orders/{id}/lc/approve` then `/api/v1/orders/{id}/lc/open` to fund.
 
         中文说明：
         - 为贸易单生成一个链上LC订单，方便后续走审批与开立。
         - 需要贸易单状态为 `trade_created` 且卖方是系统内部公司。
-        - 买方业务员填写 `lc_name`，`save_and_submit=true` 时立即提交审批。
+        - 买方业务员填写 `lc_name`，订单会立即进入审批流程。
         - 成功后LC订单进入订单列表，财务通过 `/orders/{id}/lc/approve` → `/orders/{id}/lc/open` 完成LC开立，然后等待后续放款流程。
       parameters:
         - $ref: "#/components/parameters/PathId"
@@ -1671,13 +1646,13 @@ paths:
         Prerequisites:
         - Consensus for the requested `round` must be `approved`.
         - Caller company must match the payer side determined by the consensus (`buyer_pays`).
-        - Use `save_and_submit=true` to send the payment order into the approval queue immediately.
+        - Created orders automatically enter the approval queue.
         Result: order appears in the payer's order list; when fully executed the trade moves to the next state (`second_settlement_done` or `third_settlement_done`).
 
         中文说明：
         - 共识达成后由需付款的一方创建支付汇款提单。
         - 只有共识状态为已通过、且调用方就是付款方时才能创建。
-        - 可设置 `save_and_submit=true` 直接提交审批；审批和付款完成后贸易单将进入下一阶段。
+        - 创建的提单会自动提交审批；审批和付款完成后贸易单将进入下一阶段。
       parameters:
         - $ref: "#/components/parameters/PathId"
       requestBody:
@@ -2558,17 +2533,13 @@ components:
       enum: [pending_activation, normal, disabled]
     OrderTypeEnum:
       type: string
-      enum: [payment, onchain_lc, collection]
+      enum: [payment, onchain_lc]
     OrderStatusEnum:
       type: string
       enum:
-        - pending_submission
         - pending_l2_approval
         - pending_l1_approval
         - pending_payment
-        - pending_release
-        - submitted
-        - payment_received
         - payment_completed
         - order_closed
     LCOnChainStatusEnum:
@@ -2589,12 +2560,6 @@ components:
       description: |
         Derived LC workflow status handled off-chain (approvals, finance execution, release confirmations).
         中文：信用证线下流程节点（审批、财务放款、放款确认）。
-    LCSubstatusEnum:
-      type: string
-      enum: [pending_operator_approval, pending_l2_approval]
-      description: |
-        LC release workflow step when `lc_on_chain_status=release_proposed`.
-        中文：`lc_on_chain_status=release_proposed` 时的LC释放流程节点。
     TradeProductTypeEnum:
       type: string
       enum: [pilbara_blend_fines, newman_fines, carajas_fines]
@@ -2945,14 +2910,6 @@ components:
         address: { type: string }
 
     # ===== Orders =====
-    ExecInfo:
-      type: object
-      properties:
-        company_wallet_address: { type: string }
-        company_wallet_balance:
-          type: string
-          description: "Human readable with thousands separators."
-        recipient_wallet_address: { type: string }
     OrderDTO:
       type: object
       properties:
@@ -2960,6 +2917,9 @@ components:
         company_id: { type: integer, format: int64 }
         type: { $ref: "#/components/schemas/OrderTypeEnum" }
         status: { $ref: "#/components/schemas/OrderStatusEnum" }
+        lc_off_chain_status:
+          $ref: "#/components/schemas/LCOffChainStatusEnum"
+          description: Latest recorded off-chain workflow status for LC orders.
         name: { type: string }
         product_type: { $ref: "#/components/schemas/TradeProductTypeEnum" }
         partner_id: { type: integer, format: int64 }
@@ -3003,9 +2963,6 @@ components:
         created_by: { type: integer, format: int64 }
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
-        execution_info:
-          $ref: "#/components/schemas/ExecInfo"
-          nullable: true
     CreateOrderInput:
       type: object
       required: [type, name, product_type, partner_id, amount]
@@ -3021,8 +2978,6 @@ components:
           example: USDC
           description: "Optional; defaults to server's DEFAULT_ASSET."
         description: { type: string }
-        save_and_submit: { type: boolean }
-        save_as_draft: { type: boolean }
         attachment_group_key:
           type: string
           description: |
@@ -3140,11 +3095,6 @@ components:
           description: |
             Derived LC workflow step handled off-chain (approvals, finance execution, release confirmations).
             中文：LC线下流程节点（审批、财务放款、放款确认）。
-        lc_substatus:
-          allOf: [{ $ref: "#/components/schemas/LCSubstatusEnum" }]
-          description: |
-            Additional LC release step detail when `lc_on_chain_status=release_proposed`.
-            中文：当 `lc_on_chain_status=release_proposed` 时的释放子状态。
         lc_funding_tx_hash: { type: string }
         lc_funding_tx_url: { type: string }
         lc_release_tx_hash: { type: string }
@@ -3280,11 +3230,6 @@ components:
           description: |
             Display name for the LC order (e.g., "LC ACME → SELLCO #1").
             中文：LC订单名称，例如 “LC ACME → SELLCO #1”。
-        save_and_submit:
-          type: boolean
-          description: |
-            Submit the generated LC order immediately when true.
-            中文：为 `true` 时立即提交LC订单进入审批流程。
         attachment_group_key:
           type: string
           description: |
@@ -3454,11 +3399,6 @@ components:
           description: |
             Order title shown in the payment list.
             中文：支付提单名称。
-        save_and_submit:
-          type: boolean
-          description: |
-            Submit the payment order immediately when true.
-            中文：为 true 时立即提交审批。
     RecordTradeReceiptInput:
       type: object
       required: [tx_hash]
@@ -3661,9 +3601,6 @@ components:
     TODOs:
       type: object
       properties:
-        pending_submission:
-          type: array
-          items: { $ref: "#/components/schemas/TODOItem" }
         pending_l2_approval:
           type: array
           items: { $ref: "#/components/schemas/TODOItem" }
@@ -3674,9 +3611,6 @@ components:
           type: array
           items: { $ref: "#/components/schemas/TODOItem" }
         pending_payment:
-          type: array
-          items: { $ref: "#/components/schemas/TODOItem" }
-        receipts_pending_payer:
           type: array
           items: { $ref: "#/components/schemas/TODOItem" }
         trade_consensus_pending_approval:
@@ -3697,7 +3631,7 @@ components:
       properties:
         resource:
           type: string
-          enum: [order, collection, lc, trade]
+          enum: [order, lc, trade]
         id: { type: integer, format: int64 }
 
     # ===== LC Release =====
