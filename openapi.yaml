@@ -888,13 +888,9 @@ paths:
           name: product_type
           schema: { $ref: "#/components/schemas/TradeProductTypeEnum" }
         - in: query
-          name: q
+          name: name
           schema: { type: string }
           description: Fuzzy match on order name.
-        - in: query
-          name: trade_name
-          schema: { type: string }
-          description: Fuzzy match on associated trade name.
         - in: query
           name: partner_q
           schema: { type: string }
