@@ -1221,12 +1221,14 @@ paths:
         Use the `state` filter (repeatable or comma-separated) to narrow by workflow stage.
         `product_type` filters by the commodity preset,
         `lc_off_chain_status` reflects the latest off-chain approval/release progress,
-        and `lc_on_chain_status` narrows trades with an escrow in that lifecycle state. Pagination headers mirror
-        other list endpoints.
+        `lc_on_chain_status` narrows trades with an escrow in that lifecycle state,
+        `lc_order_id` matches trades linked to a specific LC order,
+        and `third_settlemend_done_at_from` / `_to` limit the completion timestamp (accepts RFC3339 or `YYYY-MM-DD`).
+        Pagination headers mirror other list endpoints.
 
         中文说明：
         - 只返回调用方公司是买方或内部卖方的贸易单。
-        - 可重复或用逗号分隔 `state` 参数以查询多个阶段；`product_type` 限定品类；`lc_off_chain_status` 查看线下审批 / 放款节点；`lc_on_chain_status` 查看信用证链上状态，分页返回格式与其他列表一致。
+        - 可重复或用逗号分隔 `state` 参数以查询多个阶段；`product_type` 限定品类；`lc_off_chain_status` 查看线下审批 / 放款节点；`lc_on_chain_status` 查看信用证链上状态；`lc_order_id` 精确匹配关联的 LC 订单；`third_settlemend_done_at_from`、`third_settlemend_done_at_to` 过滤第三次结算完成时间（支持 RFC3339 或 `YYYY-MM-DD`），分页返回格式与其他列表一致。
       parameters:
         - in: query
           name: id
@@ -1239,6 +1241,10 @@ paths:
           name: partner_name
           schema: { type: string }
           description: Fuzzy match on partner name (internal company name or saved label).
+        - in: query
+          name: lc_order_id
+          schema: { type: integer, format: int64 }
+          description: Filters trades linked to the specified LC order ID.
         - in: query
           name: state
           style: form
@@ -1265,6 +1271,18 @@ paths:
           name: lc_on_chain_status
           schema: { $ref: "#/components/schemas/LCOnChainStatusEnum" }
           description: Filters trades whose LC escrow currently has this status.
+        - in: query
+          name: third_settlemend_done_at_from
+          schema: { type: string, format: date-time }
+          description: |
+            Lower bound (inclusive) for `third_settlement_done_at`; accepts RFC3339 or `YYYY-MM-DD`.
+            中文：`third_settlement_done_at` 起始（含），支持 RFC3339 或 `YYYY-MM-DD`。
+        - in: query
+          name: third_settlemend_done_at_to
+          schema: { type: string, format: date-time }
+          description: |
+            Upper bound (exclusive, +24h) for `third_settlement_done_at`; accepts RFC3339 or `YYYY-MM-DD`.
+            中文：`third_settlement_done_at` 截止（不含，自动 +24h），支持 RFC3339 或 `YYYY-MM-DD`。
         - $ref: "#/components/parameters/Page"
         - $ref: "#/components/parameters/PageSize"
       responses:
@@ -3091,6 +3109,13 @@ components:
           description: |
             Derived LC workflow step handled off-chain (approvals, finance execution, release confirmations).
             中文：LC线下流程节点（审批、财务放款、放款确认）。
+        third_settlement_done_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: |
+            Timestamp when the trade entered `third_settlement_done`.
+            中文：贸易单进入 `third_settlement_done` 状态的时间戳。
         lc_funding_tx_hash: { type: string }
         lc_funding_tx_url: { type: string }
         lc_release_tx_hash: { type: string }
