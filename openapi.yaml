@@ -1223,6 +1223,7 @@ paths:
         `lc_off_chain_status` reflects the latest off-chain approval/release progress,
         `lc_on_chain_status` narrows trades with an escrow in that lifecycle state,
         `lc_order_id` matches trades linked to a specific LC order,
+        `created_at_from` / `_to` bound the trade creation timestamp,
         `only_as_buyer=true` limits the results to trades where the caller is the buyer,
         `lc_open_buyer_finance_approved_at_from` / `_to` and `lc_release_platform_approved_at_from` / `_to` bound the respective LC approval timestamps,
         and `third_settlement_done_at_from` / `_to` limit the completion timestamp (accepts RFC3339 or `YYYY-MM-DD`).
@@ -1231,7 +1232,7 @@ paths:
         中文说明：
         - 只返回调用方公司是买方或内部卖方的贸易单。
         - 如果需要仅查看买方视角的贸易单，可传 `only_as_buyer=true`。
-        - 可重复或用逗号分隔 `state` 参数以查询多个阶段；`product_type` 限定品类；`lc_off_chain_status` 查看线下审批 / 放款节点；`lc_on_chain_status` 查看信用证链上状态；`lc_order_id` 精确匹配关联的 LC 订单；`lc_open_buyer_finance_approved_at_from`、`_to` 与 `lc_release_platform_approved_at_from`、`_to` 筛选相应 LC 审批时间；`third_settlement_done_at_from`、`third_settlemend_done_at_to` 过滤第三次结算完成时间（支持 RFC3339 或 `YYYY-MM-DD`），分页返回格式与其他列表一致。
+        - 可重复或用逗号分隔 `state` 参数以查询多个阶段；`product_type` 限定品类；`lc_off_chain_status` 查看线下审批 / 放款节点；`lc_on_chain_status` 查看信用证链上状态；`lc_order_id` 精确匹配关联的 LC 订单；`created_at_from`、`created_at_to` 限定贸易单创建时间；`lc_open_buyer_finance_approved_at_from`、`_to` 与 `lc_release_platform_approved_at_from`、`_to` 筛选相应 LC 审批时间；`third_settlement_done_at_from`、`third_settlemend_done_at_to` 过滤第三次结算完成时间（支持 RFC3339 或 `YYYY-MM-DD`），分页返回格式与其他列表一致。
       parameters:
         - in: query
           name: id
@@ -1278,6 +1279,18 @@ paths:
           name: lc_on_chain_status
           schema: { $ref: "#/components/schemas/LCOnChainStatusEnum" }
           description: Filters trades whose LC escrow currently has this status.
+        - in: query
+          name: created_at_from
+          schema: { type: string, format: date-time }
+          description: |
+            Lower bound (inclusive) for `trades.created_at`; accepts RFC3339 or `YYYY-MM-DD`.
+            中文：`trades.created_at` 起始（含），支持 RFC3339 或 `YYYY-MM-DD`。
+        - in: query
+          name: created_at_to
+          schema: { type: string, format: date-time }
+          description: |
+            Upper bound (exclusive, +24h) for `trades.created_at`; accepts RFC3339 or `YYYY-MM-DD`.
+            中文：`trades.created_at` 截止（不含，自动 +24h），支持 RFC3339 或 `YYYY-MM-DD`。
         - in: query
           name: lc_open_buyer_finance_approved_at_from
           schema: { type: string, format: date-time }
