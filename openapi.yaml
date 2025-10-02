@@ -2223,20 +2223,7 @@ paths:
       summary: Dashboard KPI metrics
       description: |
         - Requires a company-scoped user; `super_admin` sessions receive HTTP 400 (`no company`).
-        - Use one of `?range=monthly|quarterly|yearly`, **or** provide `start` & `end`.
-        - Date/time accepts RFC3339 or `YYYY-MM-DD`.
-      parameters:
-        - in: query
-          name: range
-          schema:
-            type: string
-            enum: [monthly, quarterly, yearly]
-        - in: query
-          name: start
-          schema: { type: string }
-        - in: query
-          name: end
-          schema: { type: string }
+        - Returns company-wide aggregates without time filters.
       responses:
         "200":
           description: Metrics
@@ -3662,13 +3649,15 @@ components:
     Metrics:
       type: object
       properties:
-        total_orders: { type: integer, format: int64 }
+        active_trades: { type: integer, format: int64 }
+        active_lcs: { type: integer, format: int64 }
+        total_trades: { type: integer, format: int64 }
         total_payments:
           type: string
-          description: "Sum in default asset, human readable"
+          description: "总付款 — formatted USDC amount"
         total_receipts:
           type: string
-          description: "Sum in default asset, human readable"
+          description: "总收款 — formatted USDC amount"
     TODOItem:
       type: object
       properties:
