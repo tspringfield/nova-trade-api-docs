@@ -3005,6 +3005,12 @@ components:
           type: array
           description: Attachments bound to the order (only `ready` records).
           items: { $ref: "#/components/schemas/AttachmentDTO" }
+        operation_records:
+          type: array
+          items: { $ref: "#/components/schemas/OperationRecordDTO" }
+          description: |
+            Chronological operation trace for the order workflow (submit → approvals → finance).
+            中文：提单的操作记录（提交、审批、财务放款等）。
         created_by: { type: integer, format: int64 }
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
@@ -3123,6 +3129,24 @@ components:
             lc_release_buyer:
               type: array
               items: { $ref: "#/components/schemas/AttachmentDTO" }
+        operation_records:
+          type: array
+          items: { $ref: "#/components/schemas/OperationRecordDTO" }
+          description: |
+            High-level trade lifecycle actions (creation, settlements, automatic status updates).
+            中文：贸易单生命周期的操作记录（创建、各轮结算、系统状态更新等）。
+        lc_open_operation_records:
+          type: array
+          items: { $ref: "#/components/schemas/OperationRecordDTO" }
+          description: |
+            LC opening workflow actions linked to the trade.
+            中文：贸易单关联的信用证开立阶段操作记录。
+        lc_release_operation_records:
+          type: array
+          items: { $ref: "#/components/schemas/OperationRecordDTO" }
+          description: |
+            LC release (放款) workflow actions linked to the trade.
+            中文：贸易单关联的信用证放款阶段操作记录。
         lc_order_id:
           type: integer
           format: int64
@@ -3474,6 +3498,41 @@ components:
           description: |
             On-chain transaction hash recorded as proof of payment.
             中文：链上交易哈希，用作付款凭证。
+    OperationRecordDTO:
+      type: object
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+          nullable: true
+          description: |
+            Event timestamp in RFC3339 format.
+            中文：操作发生时间（RFC3339）。
+        person_name:
+          type: string
+          description: |
+            Human name associated with the action.
+            中文：执行人的姓名。
+        role:
+          type: string
+          description: |
+            Localized role label (e.g., "业务员", "二级管理员").
+            中文：执行人的角色。
+        company_name:
+          type: string
+          description: |
+            Company the actor belongs to (when available).
+            中文：所属公司名称。
+        description:
+          type: string
+          description: |
+            Action description shown to end users.
+            中文：操作描述。
+        note:
+          type: string
+          description: |
+            Supplementary remarks or metadata (amounts, TXN hashes, etc.).
+            中文：补充说明或备注。
     TradeConsensus:
       type: object
       properties:
