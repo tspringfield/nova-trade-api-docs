@@ -3719,39 +3719,17 @@ components:
           description: "总收款 — formatted USDC amount"
     TODOItem:
       type: object
+      required: [function, number, name, amount, status, time]
       properties:
-        id: { type: integer, format: int64 }
+        function: { type: string }
+        number: { type: string }
         name: { type: string }
         amount: { type: string }
         status: { type: string }
-        time: { type: string }
+        time: { type: string, format: date-time }
     TODOs:
-      type: object
-      properties:
-        pending_l2_approval:
-          type: array
-          items: { $ref: "#/components/schemas/TODOItem" }
-        pending_l1_approval:
-          type: array
-          items: { $ref: "#/components/schemas/TODOItem" }
-        rejected_awaiting_action:
-          type: array
-          items: { $ref: "#/components/schemas/TODOItem" }
-        pending_payment:
-          type: array
-          items: { $ref: "#/components/schemas/TODOItem" }
-        trade_consensus_pending_approval:
-          type: array
-          items: { $ref: "#/components/schemas/TODOItem" }
-        trade_consensus_pending_payment:
-          type: array
-          items: { $ref: "#/components/schemas/TODOItem" }
-        lc_wait_seller_confirm:
-          type: array
-          items: { $ref: "#/components/schemas/TODOItem" }
-        lc_wait_buyer_confirm_and_release:
-          type: array
-          items: { $ref: "#/components/schemas/TODOItem" }
+      type: array
+      items: { $ref: "#/components/schemas/TODOItem" }
     DismissRequestGeneric:
       type: object
       required: [resource, id]
