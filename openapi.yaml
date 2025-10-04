@@ -2236,13 +2236,39 @@ paths:
   /api/v1/dashboard/todos:
     get:
       tags: [Dashboard]
-      summary: Dashboard To-Do buckets
+      summary: Dashboard To-Do items
       description: |
-        Returns pending workflow items grouped by bucket for the caller's company.
-        - Observer users receive an empty object because they have read-only access.
+        Returns the pending workflow tasks the caller is responsible for. The payload is a single
+        array sorted by the most recent `time` value (descending). Each element describes one
+        actionable item and uses the following fields:
+
+        - `function`: top-level workflow (贸易单管理 / 链上信用证开立 / 链上信用证放款 / 支付汇款管理).
+        - `number`: identifier relevant to the workflow (trade id or order id, rendered as a string).
+        - `name`: human readable title, e.g. trade name or order name.
+        - `amount`: formatted decimal string for the outstanding amount (already thousands-separated).
+        - `status`: localized next-step text for the assignee, matching the flows listed below.
+        - `time`: ISO-8601 timestamp indicating when the item last changed state.
+
+        Role-specific coverage:
+
+        - 业务员 / 公司管理员 (operator / company_admin):
+          * 贸易单管理 — 待非发起方业务员确认第二次结算共识 / 待非发起方业务员确认第三次结算共识
+          * 链上信用证放款 — 待卖方确认发货 (seller side) or 待买方业务员审核 (buyer side)
+        - 二级管理员 (l2_admin):
+          * 链上信用证开立 — 待买方二级审核
+          * 支付汇款管理 — 待支付汇款二级审核
+          * 链上信用证放款 — 待买方二级审核 (when buyer operator has pre-approved release)
+        - 一级管理员 (l1_admin):
+          * 链上信用证开立 — 待买方一级审核
+          * 支付汇款管理 — 待支付汇款一级审核
+        - 财务 (finance):
+          * 链上信用证开立 — 待买方财务放款 (escrow funding)
+          * 支付汇款管理 — 待支付汇款财务审核 (outgoing transfer execution)
+
+        Observer users inherently have no actionable tasks, so they normally receive an empty array.
       responses:
         "200":
-          description: To-Do lists by bucket
+          description: Ordered To-Do collection for the caller
           content:
             application/json:
               schema: { $ref: "#/components/schemas/TODOs" }
