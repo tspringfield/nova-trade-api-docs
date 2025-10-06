@@ -3745,10 +3745,15 @@ components:
           description: "总收款 — formatted USDC amount"
     TODOItem:
       type: object
-      required: [function, number, name, amount, status, time]
+      required: [function, name, amount, status, time]
       properties:
         function: { type: string }
-        number: { type: string }
+        trade_id:
+          type: integer
+          format: int64
+        order_id:
+          type: integer
+          format: int64
         name: { type: string }
         amount: { type: string }
         status: { type: string }
